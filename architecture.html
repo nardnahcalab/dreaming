@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>architecture.html — Local AI Memory + Dreaming System</title>
+<style>
+  :root{
+    --bg:#070b18; --bg2:#0a1024; --panel:#0e1530; --panel2:#121b3d;
+    --line:#243056; --line2:#31406e;
+    --txt:#dbe4ff; --dim:#8ea0c9; --dim2:#66769d;
+    --info:#38bdf8; --info-dim:rgba(56,189,248,.16);
+    --prompt:#c084fc; --prompt-dim:rgba(192,132,252,.16);
+    --intel:#fbbf24; --intel-dim:rgba(251,191,36,.16);
+    --ok:#34d399; --warn:#fb7185;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--txt); font-family:var(--sans);
+    line-height:1.6; overflow-x:hidden;
+    background-image:
+      radial-gradient(900px 500px at 12% -8%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(900px 550px at 88% 4%, rgba(192,132,252,.10), transparent 60%),
+      radial-gradient(1100px 600px at 50% 108%, rgba(251,191,36,.07), transparent 60%),
+      linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    background-attachment:fixed;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.35;
+    background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);
+    background-size:56px 56px;
+    mask-image:radial-gradient(circle at 50% 30%,#000 30%,transparent 85%);
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+
+  /* ---------- scroll progress ---------- */
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:100;
+    background:linear-gradient(90deg,var(--info),var(--prompt),var(--intel));
+    box-shadow:0 0 12px rgba(192,132,252,.7);transition:width .1s linear}
+
+  /* ---------- nav ---------- */
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
+    background:rgba(7,11,24,.78);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;gap:18px;height:58px;flex-wrap:wrap}
+  nav .brand{font-weight:800;letter-spacing:.4px;font-size:15px;
+    background:linear-gradient(90deg,var(--info),var(--prompt),var(--intel));
+    -webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
+  nav a{color:var(--dim);text-decoration:none;font-size:12.5px;padding:5px 10px;border-radius:8px;
+    transition:.2s;white-space:nowrap}
+  nav a:hover{color:var(--txt);background:rgba(255,255,255,.06)}
+
+  /* ---------- hero ---------- */
+  header.hero{padding:76px 0 40px;text-align:center}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:1.6px;
+    text-transform:uppercase;color:var(--dim);border:1px solid var(--line2);
+    padding:7px 16px;border-radius:99px;background:rgba(255,255,255,.03);margin-bottom:22px}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);
+    box-shadow:0 0 0 0 rgba(52,211,153,.7);animation:ping 2s infinite}
+  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(52,211,153,.6)}70%{box-shadow:0 0 0 9px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  h1{font-size:clamp(34px,5.4vw,60px);line-height:1.08;letter-spacing:-1.6px;font-weight:850}
+  h1 .g{background:linear-gradient(100deg,var(--info) 0%,var(--prompt) 48%,var(--intel) 100%);
+    background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:shift 7s ease-in-out infinite}
+  @keyframes shift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  .sub{max-width:780px;margin:20px auto 0;color:var(--dim);font-size:17px}
+  .metas{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+  .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim);border:1px solid var(--line);
+    background:rgba(255,255,255,.03);padding:6px 13px;border-radius:8px}
+  .meta b{color:var(--txt);font-weight:600}
+
+  /* ---------- sections ---------- */
+  section{padding:56px 0}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:2.4px;text-transform:uppercase;
+    color:var(--prompt);margin-bottom:10px}
+  h2{font-size:clamp(25px,3.2vw,36px);letter-spacing:-.8px;font-weight:800;margin-bottom:12px}
+  h3{font-size:19px;font-weight:700;letter-spacing:-.3px;margin-bottom:8px}
+  .lead{color:var(--dim);max-width:840px;font-size:15.5px;margin-bottom:30px}
+
+  .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.3,1)}
+  .reveal.on{opacity:1;transform:none}
+
+  /* ---------- legend ---------- */
+  .legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:18px}
+  .lg{display:flex;align-items:center;gap:9px;font-size:12.5px;font-family:var(--mono);
+    border:1px solid var(--line);background:rgba(255,255,255,.03);padding:7px 14px;border-radius:99px}
+  .sw{width:22px;height:5px;border-radius:3px}
+  .sw.i{background:var(--info);box-shadow:0 0 10px var(--info)}
+  .sw.p{background:var(--prompt);box-shadow:0 0 10px var(--prompt)}
+  .sw.n{background:var(--intel);box-shadow:0 0 10px var(--intel)}
+
+  /* ---------- big diagram ---------- */
+  .diagram-card{background:linear-gradient(180deg,rgba(18,27,61,.75),rgba(14,21,48,.9));
+    border:1px solid var(--line);border-radius:20px;padding:18px 14px 8px;overflow-x:auto;
+    box-shadow:0 30px 70px -30px rgba(0,0,0,.9)}
+  svg.flow{display:block;min-width:1120px;width:100%;height:auto}
+  .node rect{transition:.25s}
+  .node:hover rect{filter:brightness(1.35)}
+  .node text{font-family:var(--sans);pointer-events:none}
+  .t-title{font-size:16px;font-weight:750;fill:#fff;letter-spacing:.3px}
+  .t-sub{font-size:11px;fill:#9fb2dc}
+  .t-mono{font-size:10.5px;font-family:var(--mono);fill:#7d8fba}
+  .badge{font-size:9.5px;font-family:var(--mono);letter-spacing:.6px}
+  .route{fill:none;stroke-width:2.2;stroke-linecap:round;stroke-dasharray:12 10;
+    animation:dash 1.1s linear infinite;opacity:.85}
+  @keyframes dash{to{stroke-dashoffset:-22}}
+  .r-info{stroke:var(--info)} .r-prompt{stroke:var(--prompt)} .r-intel{stroke:var(--intel)}
+  .halo{animation:halo 3.4s ease-in-out infinite}
+  @keyframes halo{0%,100%{opacity:.16;transform:scale(1)}50%{opacity:.34;transform:scale(1.14)}}
+  .core{animation:corePulse 3.4s ease-in-out infinite}
+  @keyframes corePulse{0%,100%{opacity:1}50%{opacity:.7}}
+  .dreamer-glow{animation:dglow 3.2s ease-in-out infinite}
+  @keyframes dglow{0%,100%{opacity:.35}50%{opacity:.85}}
+  .spin{transform-box:fill-box;transform-origin:center;animation:spin 14s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .cap{font-size:11px;color:var(--dim2);text-align:center;font-family:var(--mono);padding:10px 0 6px}
+
+  /* ---------- two-layer ---------- */
+  .layers{display:grid;grid-template-columns:1fr auto 1fr;gap:18px;align-items:stretch}
+  @media(max-width:900px){.layers{grid-template-columns:1fr}}
+  .layer{border:1px solid var(--line);border-radius:16px;padding:22px;background:rgba(14,21,48,.7);position:relative;overflow:hidden}
+  .layer.ep{border-color:rgba(56,189,248,.4)}
+  .layer.co{border-color:rgba(251,191,36,.4)}
+  .layer h3{display:flex;align-items:center;gap:9px}
+  .tag{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:6px;letter-spacing:.6px}
+  .tag.ep{background:var(--info-dim);color:var(--info)}
+  .tag.co{background:var(--intel-dim);color:var(--intel)}
+  .files{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .file{font-family:var(--mono);font-size:10.5px;padding:5px 9px;border-radius:6px;
+    background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.3);color:#a8dcff;
+    animation:fileIn .5s backwards}
+  .file.gold{background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.32);color:#ffe19a}
+  @keyframes fileIn{from{opacity:0;transform:translateY(8px) scale(.9)}}
+  .arrow-mid{display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:11px;color:var(--dim);writing-mode:vertical-lr;letter-spacing:3px}
+  @media(max-width:900px){.arrow-mid{writing-mode:horizontal-tb;transform:rotate(0)}}
+
+  /* ---------- dream loop ---------- */
+  .loop{display:grid;grid-template-columns:1.25fr .75fr;gap:24px}
+  @media(max-width:960px){.loop{grid-template-columns:1fr}}
+  .steps{display:flex;flex-direction:column;gap:9px}
+  .step{display:flex;gap:13px;align-items:flex-start;padding:11px 15px;border-radius:11px;
+    border:1px solid var(--line);background:rgba(255,255,255,.028);
+    animation:stepGlow 11s linear infinite;animation-delay:calc(var(--i) * 1.1s)}
+  .step .n{font-family:var(--mono);font-size:11px;color:var(--prompt);font-weight:700;
+    min-width:22px;padding-top:2px}
+  .step .txt{font-size:13.4px;color:var(--dim)}
+  .step .txt b{color:var(--txt);font-weight:650;display:block;font-size:13.8px}
+  @keyframes stepGlow{
+    0%,5%{background:rgba(192,132,252,.16);border-color:rgba(192,132,252,.65);transform:translateX(7px)}
+    11%,100%{background:rgba(255,255,255,.028);border-color:var(--line);transform:none}
+  }
+  .side-card{border:1px solid var(--line);border-radius:16px;padding:20px;background:rgba(14,21,48,.7);height:fit-content}
+  .side-card ul{list-style:none;margin-top:10px}
+  .side-card li{font-size:13px;color:var(--dim);padding:7px 0 7px 20px;position:relative;border-bottom:1px dashed rgba(255,255,255,.06)}
+  .side-card li:last-child{border:0}
+  .side-card li::before{content:"▸";position:absolute;left:0;color:var(--intel)}
+  .side-card li b{color:var(--txt)}
+
+  /* ---------- component cards ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(315px,1fr));gap:16px}
+  .card{border:1px solid var(--line);border-radius:15px;padding:19px;background:rgba(14,21,48,.72);
+    transition:.28s;position:relative;overflow:hidden}
+  .card::after{content:"";position:absolute;inset:0;opacity:0;transition:.28s;pointer-events:none;
+    background:radial-gradient(420px 150px at var(--mx,50%) var(--my,0%),rgba(255,255,255,.06),transparent 70%)}
+  .card:hover{transform:translateY(-5px);border-color:var(--line2);box-shadow:0 22px 44px -22px rgba(0,0,0,.85)}
+  .card:hover::after{opacity:1}
+  .card .head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+  .card .fn{font-family:var(--mono);font-size:14px;font-weight:700;color:#fff}
+  .card p{font-size:13.2px;color:var(--dim);margin-bottom:10px}
+  .card ul{list-style:none}
+  .card li{font-size:12.4px;color:var(--dim2);padding:4px 0 4px 15px;position:relative}
+  .card li::before{content:"•";position:absolute;left:0;color:var(--info)}
+  .card li b{color:var(--dim);font-weight:600}
+  .flowtag{font-family:var(--mono);font-size:9.5px;padding:3px 8px;border-radius:6px;letter-spacing:.5px;white-space:nowrap}
+  .ft-i{background:var(--info-dim);color:var(--info)}
+  .ft-p{background:var(--prompt-dim);color:var(--prompt)}
+  .ft-n{background:var(--intel-dim);color:var(--intel)}
+  .ft-x{background:rgba(142,160,201,.14);color:var(--dim)}
+
+  /* ---------- tables ---------- */
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:15px;background:rgba(14,21,48,.7)}
+  table{width:100%;border-collapse:collapse;font-size:13.2px;min-width:660px}
+  th{background:rgba(255,255,255,.045);text-align:left;padding:12px 15px;font-size:11.5px;
+    letter-spacing:1.1px;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
+  td{padding:11px 15px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--dim);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  tr:hover td{background:rgba(255,255,255,.028)}
+  td b,td strong{color:var(--txt)}
+  td code,.inline{font-family:var(--mono);font-size:12px;background:rgba(255,255,255,.07);
+    padding:2px 6px;border-radius:5px;color:#bcd0ff}
+  .yes{color:var(--ok);font-weight:700}
+  .no{color:var(--warn);font-weight:700}
+  .lock{color:var(--intel);font-weight:700}
+
+  /* ---------- safety ---------- */
+  .safety{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:16px}
+  .sf{border:1px solid var(--line);border-radius:15px;padding:20px;background:rgba(14,21,48,.72);position:relative;overflow:hidden}
+  .sf::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,var(--info),var(--prompt),var(--intel))}
+  .sf .num{font-family:var(--mono);font-size:34px;font-weight:800;color:rgba(255,255,255,.10);line-height:1}
+  .sf h3{margin:6px 0 8px;font-size:16.5px}
+  .sf p{font-size:12.8px;color:var(--dim)}
+  .sf .verify{margin-top:11px;font-family:var(--mono);font-size:11px;color:var(--ok);
+    background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.28);padding:7px 10px;border-radius:8px}
+
+  /* ---------- rollback demo ---------- */
+  .rb{border:1px solid var(--line);border-radius:18px;padding:24px;background:rgba(14,21,48,.75)}
+  .rb-stage{position:relative;height:190px;margin:24px 0 8px}
+  .rb-\boxed{position:absolute;border-radius:13px;padding:13px 15px;border:1px solid var(--line2);
+    background:rgba(18,27,61,.9);text-align:center;min-width:150px}
+  .rb-box .h{font-family:var(--mono);font-size:12.5px;font-weight:700;color:#fff}
+  .rb-box .s{font-size:10.5px;color:var(--dim2);font-family:var(--mono);margin-top:3px}
+  .rb-epi{left:0;top:34px;border-color:rgba(56,189,248,.45);background:rgba(56,189,248,.07)}
+  .rb-d1{left:40%;top:6px}
+  .rb-d2{left:40%;top:112px}
+  .rb-ptr{position:absolute;left:calc(40% + 178px);top:0;width:150px;transition:top .7s cubic-bezier(.6,-0.2,.3,1.4)}
+  .rb-ptr .arrow{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;
+    color:var(--intel);background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.45);
+    padding:8px 12px;border-radius:9px;white-space:nowrap;box-shadow:0 0 22px rgba(251,191,36,.22)}
+  .rb.p1 .rb-ptr{top:14px} .rb.p2 .rb-ptr{top:120px}
+  .rb-note{font-family:var(--mono);font-size:11.5px;color:var(--dim2);text-align:center;min-height:20px}
+  .btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+  button{font-family:var(--mono);font-size:12.5px;padding:10px 18px;border-radius:10px;cursor:pointer;
+    border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--txt);transition:.2s}
+  button:hover{background:rgba(255,255,255,.11);transform:translateY(-2px)}
+  button.on{border-color:var(--intel);background:rgba(251,191,36,.16);color:#ffe19a}
+  .dash-link{position:absolute;border-top:2px dashed rgba(56,189,248,.4)}
+
+  /* ---------- flow strip ---------- */
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px}
+  .st{border:1px solid var(--line);border-radius:14px;padding:17px;background:rgba(14,21,48,.7);position:relative;overflow:hidden}
+  .st .ic{font-size:22px;margin-bottom:8px}
+  .st h4{font-size:14.5px;margin-bottom:6px;font-weight:700}
+  .st p{font-size:12.4px;color:var(--dim)}
+  .st .bar{position:absolute;left:0;bottom:0;height:3px;width:100%;transform:scaleX(0);transform-origin:left;
+    animation:barGrow 1.1s cubic-bezier(.2,.8,.3,1) forwards;animation-delay:var(--d,0s)}
+  @keyframes barGrow{to{transform:scaleX(1)}}
+  .st.i .bar{background:var(--info)} .st.p .bar{background:var(--prompt)} .st.n .bar{background:var(--intel)}
+
+  footer{padding:44px 0 60px;border-top:1px solid var(--line);margin-top:40px;color:var(--dim2);font-size:13px}
+  footer a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--line2)}
+  footer a:hover{color:var(--txt)}
+  .kbd{font-family:var(--mono);font-size:12px;background:rgba(255,255,255,.07);border:1px solid var(--line2);
+    padding:3px 8px;border-radius:6px;color:#bcd0ff}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<nav>
+  <div class="wrap">
+    <span class="brand">◈ dreaming / architecture</span>
+    <a href="#flow">System flow</a>
+    <a href="#layers">Memory layers</a>
+    <a href="#loop">Dream loop</a>
+    <a href="#components">Components</a>
+    <a href="#storage">Storage</a>
+    <a href="#safety">Safety</a>
+    <a href="#rollback">Rollback</a>
+    <a href="#failures">Failures</a>
+    <a href="#config">Config</a>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <div class="pill"><span class="dot"></span> 100% local · stdlib only · rollback-capable</div>
+  <h1>Local AI Memory<br><span class="g">Capture &amp; Dreaming</span></h1>
+  <p class="sub">Four coding agents write here. One immutable episodic store remembers everything.
+     A local LLM <em>dreams</em> — consolidating raw transcripts into curated, versioned intelligence
+     that never destroys its own past.</p>
+  <div class="metas">
+    <span class="meta"><b>53</b> sessions</span>
+    <span class="meta"><b>2,391</b> messages</span>
+    <span class="meta"><b>4</b> agents</span>
+    <span class="meta"><b>2</b> dreams</span>
+    <span class="meta"><b>100%</b> retention</span>
+    <span class="meta">Ollama <b>gpt-oss:20b</b></span>
+    <span class="meta">Python <b>3.12</b></span>
+  </div>
+</header>
+
+<!-- ======================= MASTER FLOW ======================= -->
+<section id="flow">
+  <div class="wrap">
+    <div class="eyebrow reveal">01 · system design</div>
+    <h2 class="reveal">The three flows</h2>
+    <p class="lead reveal">Everything the system does is one of three currents.
+       <b style="color:var(--info)">Information</b> moves raw transcripts down into memory.
+       <b style="color:var(--prompt)">Prompts</b> move context in and out of the local model.
+       <b style="color:var(--intel)">Intelligence</b> moves curated memories back out to the tools that need them.
+       Arrows only ever point down — nothing writes upward into a higher-trust layer.</p>
+
+    <div class="legend reveal">
+      <span class="lg"><span class="sw i"></span> information — raw transcripts</span>
+      <span class="lg"><span class="sw p"></span> prompt / response — LLM context</span>
+      <span class="lg"><span class="sw n"></span> intelligence — consolidated memory</span>
+    </div>
+
+    <div class="diagram-card reveal">
+      <svg class="flow" viewBox="0 0 1360 600" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" role="img" aria-label="System data flow diagram">
+        <defs>
+          <linearGradient id="gPanel" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#16204a"/><stop offset="1" stop-color="#0d1430"/>
+          </linearGradient>
+          <linearGradient id="gInfo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="rgba(56,189,248,.22)"/><stop offset="1" stop-color="rgba(56,189,248,.07)"/>
+          </linearGradient>
+          <linearGradient id="gPrompt" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="rgba(192,132,252,.24)"/><stop offset="1" stop-color="rgba(192,132,252,.08)"/>
+          </linearGradient>
+          <linearGradient id="gIntel" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="rgba(251,191,36,.22)"/><stop offset="1" stop-color="rgba(251,191,36,.07)"/>
+          </linearGradient>
+          <filter id="soft" x="-70%" y="-70%" width="240%" height="240%">
+            <feGaussianBlur stdDeviation="7"/>
+          </filter>
+
+          <!-- routes for particles -->
+          <path id="routeInfo" fill="none" d="M220,197 C258,197 262,300 300,300 L510,300 C552,300 552,258 590,258"/>
+          <path id="routePrompt" fill="none" d="M668,340 C652,378 650,410 656,440"/>
+          <path id="routeResp" fill="none" d="M756,440 C764,410 762,378 748,340"/>
+          <path id="routeIntelA" fill="none" d="M820,258 C862,258 862,300 900,300 L1110,300 C1148,300 1150,182 1184,182"/>
+          <path id="routeIntelB" fill="none" d="M820,258 C862,258 862,300 900,300 L1184,302"/>
+          <path id="routeIntelC" fill="none" d="M820,258 C862,258 862,300 900,300 L1110,300 C1148,300 1150,422 1184,422"/>
+
+          <!-- arrowheads -->
+          <marker id="ah-info" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#38bdf8"/>
+          </marker>
+          <marker id="ah-prompt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c084fc"/>
+          </marker>
+          <marker id="ah-intel" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+          </marker>
+        </defs>
+
+        <!-- ============ static converging lines: sources -> episodic ============ -->
+        <g opacity=".55">
+          <path class="route r-info" d="M220,102 C258,102 264,300 300,300" marker-end="url(#ah-info)"/>
+          <path class="route r-info" d="M220,197 C258,197 262,300 300,300" marker-end="url(#ah-info)"/>
+          <path class="route r-info" d="M220,292 C258,292 264,300 300,300" marker-end="url(#ah-info)"/>
+          <path class="route r-info" d="M220,387 C258,387 264,300 300,300" marker-end="url(#ah-info)"/>
+        </g>
+        <!-- episodic -> dreamer -->
+        <path class="route r-info" d="M510,300 C552,300 552,258 590,258" marker-end="url(#ah-info)"/>
+        <!-- dreamer <-> ollama -->
+        <path class="route r-prompt" d="M668,340 C652,378 650,410 656,440" marker-end="url(#ah-prompt)"/>
+        <path class="route r-prompt" d="M756,440 C764,410 762,378 748,340" marker-end="url(#ah-prompt)"/>
+        <!-- dreamer -> consolidated -->
+        <path class="route r-intel" d="M820,258 C862,258 862,300 900,300" marker-end="url(#ah-intel)"/>
+        <!-- consolidated -> outputs -->
+        <path class="route r-intel" d="M1110,300 C1148,300 1150,182 1184,182" marker-end="url(#ah-intel)"/>
+        <path class="route r-intel" d="M1110,302 L1184,302" marker-end="url(#ah-intel)"/>
+        <path class="route r-intel" d="M1110,300 C1148,300 1150,422 1184,422" marker-end="url(#ah-intel)"/>
+
+        <!-- ============ SOURCES ============ -->
+        <g class="node">
+          <rect x="40" y="70" width="180" height="64" rx="12" fill="url(#gInfo)" stroke="#38bdf8" stroke-opacity=".55"/>
+          <text class="t-title" x="130" y="97" text-anchor="middle">OpenCode</text>
+          <text class="t-sub" x="130" y="117" text-anchor="middle">opencode.db · SQLite</text>
+        </g>
+        <g class="node">
+          <rect x="40" y="165" width="180" height="64" rx="12" fill="url(#gInfo)" stroke="#38bdf8" stroke-opacity=".55"/>
+          <text class="t-title" x="130" y="192" text-anchor="middle">Claude Code</text>
+          <text class="t-sub" x="130" y="212" text-anchor="middle">projects/*.jsonl</text>
+        </g>
+        <g class="node">
+          <rect x="40" y="260" width="180" height="64" rx="12" fill="url(#gInfo)" stroke="#38bdf8" stroke-opacity=".55"/>
+          <text class="t-title" x="130" y="287" text-anchor="middle">Codex</text>
+          <text class="t-sub" x="130" y="307" text-anchor="middle">rollout-*.jsonl</text>
+        </g>
+        <g class="node">
+          <rect x="40" y="355" width="180" height="64" rx="12" fill="url(#gInfo)" stroke="#38bdf8" stroke-opacity=".55"/>
+          <text class="t-title" x="130" y="382" text-anchor="middle">Hermes</text>
+          <text class="t-sub" x="130" y="402" text-anchor="middle">state.db · SQLite</text>
+        </g>
+        <text class="t-mono" x="130" y="52" text-anchor="middle" fill="#38bdf8">◤ SOURCES — read-only ◥</text>
+        <text class="t-mono" x="130" y="452" text-anchor="middle">collectors.py · _clean() · _iso()</text>
+
+        <!-- ============ EPISODIC ============ -->
+        <g class="node">
+          <rect x="300" y="150" width="210" height="300" rx="16" fill="url(#gPanel)" stroke="#38bdf8" stroke-opacity=".7"/>
+          <rect x="300" y="150" width="210" height="4" rx="2" fill="#38bdf8"/>
+          <text class="t-title" x="405" y="192" text-anchor="middle" fill="#8adcff">EPISODIC</text>
+          <text class="t-sub" x="405" y="212" text-anchor="middle">layer 1 · raw memory</text>
+          <g class="spin" transform="translate(405,258)">
+            <circle r="26" fill="none" stroke="#38bdf8" stroke-opacity=".45" stroke-width="2" stroke-dasharray="6 7"/>
+            <circle class="halo" r="17" fill="#38bdf8" opacity=".2"/>
+            <circle class="core" r="8" fill="#38bdf8"/>
+          </g>
+          <text class="t-mono" x="405" y="316" text-anchor="middle" fill="#8adcff">sessions/&lt;hash&gt;.json</text>
+          <text class="t-mono" x="405" y="336" text-anchor="middle">write-once · mode "x"</text>
+          <text class="t-mono" x="405" y="356" text-anchor="middle">index.json (atomic)</text>
+          <text class="t-mono" x="405" y="376" text-anchor="middle">ingest_log.jsonl</text>
+          <rect x="336" y="396" width="138" height="26" rx="7" fill="rgba(251,191,36,.12)" stroke="rgba(251,191,36,.45)"/>
+          <text class="badge" x="405" y="413" text-anchor="middle" fill="#fbbf24">🔒 NEVER MODIFIED</text>
+        </g>
+
+        <!-- ============ DREAMER ============ -->
+        <g class="node">
+          <ellipse class="dreamer-glow" cx="705" cy="258" rx="150" ry="105" fill="#c084fc" filter="url(#soft)" opacity=".4"/>
+          <rect x="590" y="175" width="230" height="165" rx="16" fill="url(#gPrompt)" stroke="#c084fc" stroke-opacity=".8"/>
+          <rect x="590" y="175" width="230" height="4" rx="2" fill="#c084fc"/>
+          <text class="t-title" x="705" y="216" text-anchor="middle" fill="#e2ccff">DREAMER</text>
+          <text class="t-sub" x="705" y="236" text-anchor="middle">consolidation engine</text>
+          <text class="t-mono" x="705" y="266" text-anchor="middle" fill="#c9a9ff">batch ≤ 40 · budget 120K</text>
+          <text class="t-mono" x="705" y="286" text-anchor="middle" fill="#c9a9ff">dedup → cap → artifact</text>
+          <rect x="616" y="300" width="178" height="26" rx="7" fill="rgba(192,132,252,.16)"/>
+          <text class="badge" x="705" y="317" text-anchor="middle" fill="#e2ccff">IMMUTABLE OUTPUT</text>
+        </g>
+
+        <!-- ============ OLLAMA ============ -->
+        <g class="node">
+          <rect x="615" y="440" width="180" height="95" rx="14" fill="url(#gPanel)" stroke="#c084fc" stroke-opacity=".6"/>
+          <text class="t-title" x="705" y="474" text-anchor="middle" fill="#e2ccff">Ollama</text>
+          <text class="t-sub" x="705" y="494" text-anchor="middle">gpt-oss:20b · localhost</text>
+          <text class="t-mono" x="705" y="516" text-anchor="middle">format:json · t=0.2</text>
+          <circle cx="775" cy="462" r="5" fill="#34d399">
+            <animate attributeName="opacity" values="1;.25;1" dur="1.8s" repeatCount="indefinite"/>
+          </circle>
+        </g>
+        <text class="t-mono" x="640" y="392" fill="#c084fc">prompt ▼</text>
+        <text class="t-mono" x="762" y="392" fill="#c084fc">▲ response</text>
+        <text class="t-mono" x="705" y="566" text-anchor="middle">heuristic fallback when unreachable</text>
+
+        <!-- ============ CONSOLIDATED ============ -->
+        <g class="node">
+          <rect x="900" y="150" width="210" height="300" rx="16" fill="url(#gPanel)" stroke="#fbbf24" stroke-opacity=".7"/>
+          <rect x="900" y="150" width="210" height="4" rx="2" fill="#fbbf24"/>
+          <text class="t-title" x="1005" y="192" text-anchor="middle" fill="#ffd97a">CONSOLIDATED</text>
+          <text class="t-sub" x="1005" y="212" text-anchor="middle">layer 2 · curated memory</text>
+          <g transform="translate(1005,258)">
+            <circle class="halo" r="24" fill="#fbbf24" opacity=".2"/>
+            <circle class="core" r="12" fill="#fbbf24"/>
+            <circle r="34" fill="none" stroke="#fbbf24" stroke-opacity=".4" stroke-width="2" stroke-dasharray="4 9"/>
+          </g>
+          <text class="t-mono" x="1005" y="316" text-anchor="middle" fill="#ffd97a">dream-0001.json</text>
+          <text class="t-mono" x="1005" y="336" text-anchor="middle" fill="#ffd97a">dream-0002.json</text>
+          <text class="t-mono" x="1005" y="356" text-anchor="middle">latest.txt ← pointer</text>
+          <text class="t-mono" x="1005" y="376" text-anchor="middle">history.jsonl</text>
+          <rect x="936" y="396" width="138" height="26" rx="7" fill="rgba(251,191,36,.12)" stroke="rgba(251,191,36,.45)"/>
+          <text class="badge" x="1005" y="413" text-anchor="middle" fill="#fbbf24">↺ ROLLBACK ANYTIME</text>
+        </g>
+
+        <!-- ============ OUTPUTS ============ -->
+        <g class="node">
+          <rect x="1184" y="150" width="150" height="64" rx="12" fill="url(#gIntel)" stroke="#fbbf24" stroke-opacity=".55"/>
+          <text class="t-title" x="1259" y="177" text-anchor="middle" fill="#ffe19a">recall</text>
+          <text class="t-sub" x="1259" y="197" text-anchor="middle">2-layer search</text>
+        </g>
+        <g class="node">
+          <rect x="1184" y="270" width="150" height="64" rx="12" fill="url(#gIntel)" stroke="#fbbf24" stroke-opacity=".55"/>
+          <text class="t-title" x="1259" y="297" text-anchor="middle" fill="#ffe19a">eval</text>
+          <text class="t-sub" x="1259" y="317" text-anchor="middle">retention / drift</text>
+        </g>
+        <g class="node">
+          <rect x="1184" y="390" width="150" height="64" rx="12" fill="url(#gIntel)" stroke="#fbbf24" stroke-opacity=".55"/>
+          <text class="t-title" x="1259" y="417" text-anchor="middle" fill="#ffe19a">rollback</text>
+          <text class="t-sub" x="1259" y="437" text-anchor="middle">repoint latest</text>
+        </g>
+        <text class="t-mono" x="1259" y="512" text-anchor="middle" fill="#fbbf24">◤ CONSUMERS ◥</text>
+
+        <!-- ============ PARTICLES: information ============ -->
+        <g>
+          <g><animateMotion dur="7.5s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#routeInfo"/></animateMotion>
+            <circle r="13" fill="#38bdf8" opacity=".18"/><circle r="5" fill="#38bdf8"/></g>
+          <g><animateMotion dur="7.5s" repeatCount="indefinite" begin="2.5s"><mpath xlink:href="#routeInfo"/></animateMotion>
+            <circle r="13" fill="#38bdf8" opacity=".18"/><circle r="5" fill="#38bdf8"/></g>
+          <g><animateMotion dur="7.5s" repeatCount="indefinite" begin="5s"><mpath xlink:href="#routeInfo"/></animateMotion>
+            <circle r="13" fill="#38bdf8" opacity=".18"/><circle r="5" fill="#38bdf8"/></g>
+        </g>
+
+        <!-- ============ PARTICLES: prompt / response ============ -->
+        <g>
+          <g><animateMotion dur="3.4s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#routePrompt"/></animateMotion>
+            <circle r="12" fill="#c084fc" opacity=".2"/><circle r="4.5" fill="#c084fc"/></g>
+          <g><animateMotion dur="3.4s" repeatCount="indefinite" begin="1.7s"><mpath xlink:href="#routePrompt"/></animateMotion>
+            <circle r="12" fill="#c084fc" opacity=".2"/><circle r="4.5" fill="#c084fc"/></g>
+          <g><animateMotion dur="3.4s" repeatCount="indefinite" begin=".85s"><mpath xlink:href="#routeResp"/></animateMotion>
+            <circle r="12" fill="#e6d4ff" opacity=".2"/><circle r="4.5" fill="#e6d4ff"/></g>
+          <g><animateMotion dur="3.4s" repeatCount="indefinite" begin="2.55s"><mpath xlink:href="#routeResp"/></animateMotion>
+            <circle r="12" fill="#e6d4ff" opacity=".2"/><circle r="4.5" fill="#e6d4ff"/></g>
+        </g>
+
+        <!-- ============ PARTICLES: intelligence ============ -->
+        <g>
+          <g><animateMotion dur="6.5s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#routeIntelA"/></animateMotion>
+            <circle r="13" fill="#fbbf24" opacity=".18"/><circle r="5" fill="#fbbf24"/></g>
+          <g><animateMotion dur="6.5s" repeatCount="indefinite" begin="2.2s"><mpath xlink:href="#routeIntelB"/></animateMotion>
+            <circle r="13" fill="#fbbf24" opacity=".18"/><circle r="5" fill="#fbbf24"/></g>
+          <g><animateMotion dur="6.5s" repeatCount="indefinite" begin="4.4s"><mpath xlink:href="#routeIntelC"/></animateMotion>
+            <circle r="13" fill="#fbbf24" opacity=".18"/><circle r="5" fill="#fbbf24"/></g>
+        </g>
+      </svg>
+      <div class="cap">blue: transcripts → store → dreamer &nbsp;·&nbsp; purple: prompt/response ↔ local model &nbsp;·&nbsp; gold: curated memory → consumers</div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= FLOW STRIP ======================= -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="strip">
+      <div class="st i reveal"><div class="ic">🛰️</div><h4>1 · Capture</h4>
+        <p>Four collectors parse four native formats into one normalized <span class="inline">Session</span> schema. Sources open read-only.</p><div class="bar" style="--d:.1s"></div></div>
+      <div class="st i reveal"><div class="ic">🧊</div><h4>2 · Preserve</h4>
+        <p>Content-addressed, write-once files. Re-sync is a no-op. The past is physically unchangeable.</p><div class="bar" style="--d:.25s"></div></div>
+      <div class="st p reveal"><div class="ic">💤</div><h4>3 · Dream</h4>
+        <p>A local model reads new transcripts + prior memory, emits durable facts, lessons, preferences, tasks.</p><div class="bar" style="--d:.4s"></div></div>
+      <div class="st n reveal"><div class="ic">📦</div><h4>4 · Version</h4>
+        <p>Each dream is a brand-new immutable artifact. Only <span class="inline">latest.txt</span> moves.</p><div class="bar" style="--d:.55s"></div></div>
+      <div class="st n reveal"><div class="ic">🔍</div><h4>5 · Serve &amp; verify</h4>
+        <p>Two-layer recall answers questions; eval compares dreams and warns before damage sticks.</p><div class="bar" style="--d:.7s"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= LAYERS ======================= -->
+<section id="layers">
+  <div class="wrap">
+    <div class="eyebrow reveal">02 · memory model</div>
+    <h2 class="reveal">Two layers, one direction</h2>
+    <p class="lead reveal">Modeled on how biological memory separates fast episodic encoding from slow consolidation —
+       and on Anthropic's 2026 "Dreams" architecture: the input store is never modified, so every consolidation
+       is reversible. Zhang et al. (arXiv:2605.12978) showed in-place rewriting degrades memory through
+       misgrouping, interference and overfit; this design makes that class of failure structurally impossible.</p>
+
+    <div class="layers">
+      <div class="layer ep reveal">
+        <h3>Layer 1 — Episodic <span class="tag ep">APPEND-ONLY</span></h3>
+        <p style="font-size:13.4px;color:var(--dim);margin-top:8px">Raw transcripts, exactly as captured.
+           The "hippocampus": fast, complete, never edited, never pruned.</p>
+        <div class="files">
+          <span class="file" style="animation-delay:.05s">b9ebc5e3….json</span>
+          <span class="file" style="animation-delay:.12s">1307825a….json</span>
+          <span class="file" style="animation-delay:.19s">183e2a1d….json</span>
+          <span class="file" style="animation-delay:.26s">index.json</span>
+          <span class="file" style="animation-delay:.33s">ingest_log.jsonl</span>
+          <span class="file" style="animation-delay:.4s">…48 more</span>
+        </div>
+        <ul style="list-style:none;margin-top:14px">
+          <li style="font-size:12.6px;color:var(--dim2);padding:5px 0">🔒 open mode <span class="inline">"x"</span> — exclusive create</li>
+          <li style="font-size:12.6px;color:var(--dim2);padding:5px 0">🔒 SQLite sources via <span class="inline">mode=ro</span></li>
+          <li style="font-size:12.6px;color:var(--dim2);padding:5px 0">🔒 dedup key = SHA-256 of content</li>
+        </ul>
+      </div>
+
+      <div class="arrow-mid reveal">READ&nbsp;ONLY&nbsp;▸</div>
+
+      <div class="layer co reveal">
+        <h3>Layer 2 — Consolidated <span class="tag co">VERSIONED</span></h3>
+        <p style="font-size:13.4px;color:var(--dim);margin-top:8px">Curated abstract memory produced by dreaming.
+           The "neocortex": slow, selective, revisable — but every revision is a new file.</p>
+        <div class="files">
+          <span class="file gold" style="animation-delay:.05s">dream-0001.json · 19</span>
+          <span class="file gold" style="animation-delay:.12s">dream-0002.json · 19</span>
+          <span class="file gold" style="animation-delay:.19s">latest.txt</span>
+          <span class="file gold" style="animation-delay:.26s">history.jsonl</span>
+        </div>
+        <ul style="list-style:none;margin-top:14px">
+          <li style="font-size:12.6px;color:var(--dim2);padding:5px 0">✦ categories: fact · preference · project · lesson · task</li>
+          <li style="font-size:12.6px;color:var(--dim2);padding:5px 0">✦ importance + confidence scored 0–1</li>
+          <li style="font-size:12.6px;color:var(--dim2);padding:5px 0">✦ <span class="inline">sources[]</span> trace back to session hashes</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DREAM LOOP ======================= -->
+<section id="loop">
+  <div class="wrap">
+    <div class="eyebrow reveal">03 · the dreaming pass</div>
+    <h2 class="reveal">Dreamer.dream() — 10 steps on loop</h2>
+    <p class="lead reveal">One consolidation pass. Watch the highlight travel: it's the exact order the code executes,
+       including both early-exit guards and the LLM→heuristic fallback.</p>
+
+    <div class="loop">
+      <div class="steps reveal">
+        <div class="step" style="--i:0"><span class="n">01</span><span class="txt"><b>Load episodic sessions</b>read-only, sorted chronologically</span></div>
+        <div class="step" style="--i:1"><span class="n">02</span><span class="txt"><b>Compute `already` set</b>union across <i>every</i> dream — never reprocess</span></div>
+        <div class="step" style="--i:2"><span class="n">03</span><span class="txt"><b>Diff → new sessions, take batch</b>last N unseen (default 40)</span></div>
+        <div class="step" style="--i:3"><span class="n">04</span><span class="txt"><b>Empty batch?</b>→ log <span class="inline">dream_skipped</span>, return (no empty artifact)</span></div>
+        <div class="step" style="--i:4"><span class="n">05</span><span class="txt"><b>Build prompt</b>prior memory + transcripts, budgeted to ~120K chars</span></div>
+        <div class="step" style="--i:5"><span class="n">06</span><span class="txt"><b>Call local Ollama</b>JSON mode, temp 0.2, 900s timeout</span></div>
+        <div class="step" style="--i:6"><span class="n">07</span><span class="txt"><b>Any exception?</b>→ record <span class="inline">llm_error</span>, fall back to regex heuristic</span></div>
+        <div class="step" style="--i:7"><span class="n">08</span><span class="txt"><b>Validate &amp; clamp</b>categories forced to the fixed 5-way taxonomy</span></div>
+        <div class="step" style="--i:8"><span class="n">09</span><span class="txt"><b>Dedup + importance cap</b>“plan to forget” — consolidated only</span></div>
+        <div class="step" style="--i:9"><span class="n">10</span><span class="txt"><b>Save NEW artifact + repoint</b>immutable dream-NNNN, then log to history</span></div>
+      </div>
+
+      <div class="side-card reveal">
+        <h3>Why this loop is safe</h3>
+        <ul>
+          <li><b>Union across all dreams</b> — a session in dream-0001 can't be re-dreamed by dream-0003 even if dream-0002 ignored it.</li>
+          <li><b>Early exit</b> — nothing new ⇒ nothing written. No vacuous artifacts polluting history.</li>
+          <li><b>Graceful degradation</b> — timeout, bad JSON or no Ollama still yields a completed dream via heuristics.</li>
+          <li><b>Prompt budget</b> — adaptive split of 120K chars fixed a real 456K-char timeout (runlog §8).</li>
+          <li><b>Forget selectively</b> — importance cap shrinks layer 2; layer 1 is never touched.</li>
+          <li><b>Traceable</b> — every entry keeps <span class="inline">sources[]</span> back to raw evidence.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= COMPONENTS ======================= -->
+<section id="components">
+  <div class="wrap">
+    <div class="eyebrow reveal">04 · software components</div>
+    <h2 class="reveal">Component reference</h2>
+    <p class="lead reveal">Every module, its role in the three flows, and what's inside.
+       Colored tags show which current the component primarily carries.</p>
+
+    <div class="grid">
+      <div class="card reveal"><div class="head"><span class="fn">schema.py</span><span class="flowtag ft-x">contract</span></div>
+        <p>The shared vocabulary. Collectors produce these types, stores serialize them, the dreamer consumes them — so no downstream code ever knows which tool a session came from.</p>
+        <ul>
+          <li><b>Message</b> — role, content, timestamp, meta</li>
+          <li><b>Session</b> — <span class="inline">content_hash</span> (SHA-256/24), <span class="inline">transcript_text()</span> with 3K/60K clipping</li>
+          <li><b>MemoryEntry</b> — category, importance, confidence, sources[]</li>
+          <li><b>DreamArtifact</b> — entries + stats + previous_dream chain</li>
+          <li><b>from_dict()</b> drops unknown keys → old dreams stay loadable</li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">collectors.py</span><span class="flowtag ft-i">information</span></div>
+        <p>Four collectors, one interface: <span class="inline">available()</span> + <span class="inline">collect(limit)</span> → <span class="inline">List[Session]</span>.</p>
+        <ul>
+          <li><b>OpenCodeCollector</b> — session_v2 ⨝ session_message, JSON content parts</li>
+          <li><b>ClaudeCodeCollector</b> — skips /subagents/ and system-reminders</li>
+          <li><b>CodexCollector</b> — response_item preferred, event_msg fallback w/ dedup</li>
+          <li><b>HermesCollector</b> — sessions ⨝ messages, cwd → project</li>
+          <li><b>_clean()</b> drops tool_use/tool_result noise · <b>_iso()</b> unifies s/ms/µs/ISO</li>
+          <li>SQLite opened <span class="inline">mode=ro</span> · JSONL <span class="inline">errors="replace"</span></li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">episodic.py</span><span class="flowtag ft-i">information</span></div>
+        <p><b>EpisodicStore</b> — safety principle #1 made concrete.</p>
+        <ul>
+          <li><b>add()</b> — existence check → <span class="inline">open(path,"x")</span> exclusive create</li>
+          <li><b>index.json</b> — metadata only, atomic <span class="inline">tmp + os.replace</span></li>
+          <li><b>known_hashes()</b> — fast pre-filter so re-sync costs ~0.1s</li>
+          <li><b>all_sessions()</b> — chronological load for the dreamer</li>
+          <li><b>ingest_log.jsonl</b> — stored / skip_duplicate audit trail</li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">dreaming.py</span><span class="flowtag ft-p">prompt</span></div>
+        <p>The engine — five parts, largest module.</p>
+        <ul>
+          <li><b>LocalLLM</b> — stdlib urllib Ollama client, JSON mode, 900s timeout</li>
+          <li><b>DREAM_SYSTEM</b> — 5 categories, durability + specificity + anti-hallucination rules</li>
+          <li><b>_build_dream_prompt()</b> — adaptive 120K char budget across batch</li>
+          <li><b>heuristic_consolidate()</b> — regex fallback, carries prior entries forward</li>
+          <li><b>DreamStore</b> — immutable saves, pointer rollback, history log</li>
+          <li><b>Dreamer.dream()</b> — the 10-step orchestration above</li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">evaluator.py</span><span class="flowtag ft-n">intelligence</span></div>
+        <p>Safety principle #3 — compare before you trust.</p>
+        <ul>
+          <li><b>compare(before, after)</b> — kept / lost / added, retention %, category histograms</li>
+          <li><b>important_lost</b> — any lost entry with importance ≥ 0.7 ⇒ degradation warning</li>
+          <li><b>run_self_test()</b> — duplicates, vague entries (&lt;4 words), health verdict</li>
+          <li>Measurable output: <b>100% retention</b> dream-0001→0002</li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">recall.py</span><span class="flowtag ft-n">intelligence</span></div>
+        <p>Two-layer retrieval — curated answer first, raw evidence beneath.</p>
+        <ul>
+          <li><b>Consolidated</b> — 1.0 × token-overlap + 0.3 × importance, threshold ≥ 0.15</li>
+          <li><b>Episodic</b> — 0.6 × overlap over user <i>and</i> assistant messages</li>
+          <li><b>_tokenize()</b> — lowercase, non-alnum split, len &gt; 2</li>
+          <li>Pure stdlib — no TF-IDF, no embeddings, zero deps</li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">dream.py</span><span class="flowtag ft-x">CLI</span></div>
+        <p>argparse entry point, <span class="inline">--root</span> global flag, 10 subcommands.</p>
+        <ul>
+          <li><b>sync</b> · <b>status</b> · <b>dream</b> (--no-llm / --max-sessions / --model)</li>
+          <li><b>show</b> · <b>recall</b> · <b>eval</b> · <b>rollback</b></li>
+          <li><b>models</b> · <b>history</b></li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">run_dream.sh</span><span class="flowtag ft-x">scheduler</span></div>
+        <p>One cron-able cycle with per-step fault isolation.</p>
+        <ul>
+          <li><b>sync</b> → <b>dream</b> → <b>eval</b></li>
+          <li>Greps for <span class="inline">DEGRADATION WARNING</span> ⇒ prints <span class="inline">ALERT:</span></li>
+          <li>Each step <span class="inline">|| echo WARN</span> — one failure never aborts the cycle</li>
+          <li>Cron: <span class="inline">0 3 * * * …run_dream.sh &gt;&gt; …log 2&gt;&amp;1</span></li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">core/ · examples/</span><span class="flowtag ft-x">reference</span></div>
+        <p>Research-grade validation layer — not invoked by the CLI.</p>
+        <ul>
+          <li><b>AnthropicDreams</b> — parallel artifact + rollback_to_previous + evaluate_dream</li>
+          <li><b>OpenAIDreaming</b> — in-place rewrite (the anti-pattern, kept for comparison)</li>
+          <li><b>ZhangBenchmarkEvaluator</b> — misgrouping / interference / overfit tests</li>
+          <li><b>compare_architectures.py</b> — runs both styles side by side</li>
+        </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= STORAGE ======================= -->
+<section id="storage">
+  <div class="wrap">
+    <div class="eyebrow reveal">05 · on-disk</div>
+    <h2 class="reveal">Storage &amp; mutability</h2>
+    <p class="lead reveal">Complete tree of <span class="inline">~/.dream-memory</span> — ~1.8 MB for 53 sessions,
+       2,391 messages and 2 dreams. The mutability matrix is the whole safety story in one table.</p>
+
+    <div class="tbl-wrap reveal" style="margin-bottom:18px">
+      <table>
+        <thead><tr><th>File</th><th>Written</th><th>Ever updated?</th><th>Mechanism</th></tr></thead>
+        <tbody>
+          <tr><td><code>episodic/sessions/*.json</code></td><td>once</td><td class="lock">NEVER</td><td><code>open(path, "x")</code> exclusive create</td></tr>
+          <tr><td><code>episodic/index.json</code></td><td>on add</td><td class="yes">yes — metadata only</td><td>atomic <code>tmp + os.replace</code></td></tr>
+          <tr><td><code>episodic/ingest_log.jsonl</code></td><td>on add/skip</td><td class="yes">append-only</td><td><code>"a"</code> mode</td></tr>
+          <tr><td><code>dreaming/dream-NNNN.json</code></td><td>once</td><td class="lock">NEVER</td><td><code>FileExistsError</code> if re-saved</td></tr>
+          <tr><td><code>dreaming/latest.txt</code></td><td>on save/rollback</td><td class="no">yes — the only lever</td><td>single-line pointer rewrite</td></tr>
+          <tr><td><code>dreaming/history.jsonl</code></td><td>on dream/skip</td><td class="yes">append-only</td><td><code>"a"</code> mode</td></tr>
+          <tr><td>source DBs / JSONL (4 tools)</td><td>by the tools</td><td class="lock">never by us</td><td><code>file:…?mode=ro</code> URI</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tbl-wrap reveal">
+      <table>
+        <thead><tr><th>Layer</th><th>Contents</th><th>Size</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><b>episodic/</b></td><td>53 session files + index + ingest log</td><td>~1.7 MB</td><td>ground truth — never pruned, never edited</td></tr>
+          <tr><td><b>dreaming/</b></td><td>2 artifacts + pointer + history</td><td>~60 KB</td><td>curated intelligence — versioned, rollback-able</td></tr>
+          <tr><td><b>git repo</b></td><td>code + docs + runlog</td><td>31 files</td><td>source of truth for the system itself</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= SAFETY ======================= -->
+<section id="safety">
+  <div class="wrap">
+    <div class="eyebrow reveal">06 · design principles</div>
+    <h2 class="reveal">Four safety principles → four mechanisms</h2>
+    <p class="lead reveal">Taken from the reference research and enforced by construction, not by convention.</p>
+
+    <div class="safety">
+      <div class="sf reveal"><div class="num">01</div><h3>Preserve the input</h3>
+        <p>Session files and dream artifacts both use exclusive-create. Sources open read-only. Nothing in layer 1 can be rewritten even by a bug.</p>
+        <div class="verify">✓ re-sync = 0 writes (runlog §6)</div></div>
+
+      <div class="sf reveal"><div class="num">02</div><h3>Instrument the loop</h3>
+        <p>Every ingest decision hits <span class="inline">ingest_log.jsonl</span>; every dream, skip and LLM error hits <span class="inline">history.jsonl</span> with a timestamp.</p>
+        <div class="verify">✓ dream.py history</div></div>
+
+      <div class="sf reveal"><div class="num">03</div><h3>Compare with an eval</h3>
+        <p><span class="inline">compare()</span> diffs consecutive dreams; losing any entry with importance ≥ 0.7 raises a degradation warning before damage becomes permanent.</p>
+        <div class="verify">✓ 100% retention, 0 lost (runlog §9)</div></div>
+
+      <div class="sf reveal"><div class="num">04</div><h3>Plan to forget</h3>
+        <p>Consolidated memory is capped by importance (default 60). Selective forgetting happens only in layer 2 — episodic is never pruned.</p>
+        <div class="verify">✓ entries_pruned tracked in stats</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ROLLBACK ======================= -->
+<section id="rollback">
+  <div class="wrap">
+    <div class="eyebrow reveal">07 · interactive</div>
+    <h2 class="reveal">Rollback is just a pointer</h2>
+    <p class="lead reveal">Because every dream is a separate immutable file, undoing consolidation is O(1):
+       rewrite one line in <span class="inline">latest.txt</span>. The episodic layer and both artifacts stay byte-identical.</p>
+
+    <div class="rb p2 reveal" id="rb">
+      <div class="rb-stage">
+        <div class="rb-box rb-epi">
+          <div class="h">🧊 EPISODIC</div>
+          <div class="s">53 sessions · untouched</div>
+          <div class="s" style="color:#8adcff">always the same</div>
+        </div>
+        <div class="dash-link" style="left:24%;top:66px;width:14%"></div>
+        <div class="rb-box rb-d1"><div class="h">dream-0001</div><div class="s">19 entries · LLM</div><div class="s" style="color:#ffd97a">immutable</div></div>
+        <div class="rb-box rb-d2"><div class="h">dream-0002</div><div class="s">19 entries · heuristic</div><div class="s" style="color:#ffd97a">immutable</div></div>
+        <div class="rb-ptr"><div class="arrow">➤ latest.txt → <b id="rbTarget">dream-0002</b></div></div>
+      </div>
+      <div class="rb-note" id="rbNote">pointer at dream-0002 · recall + eval use this artifact</div>
+      <div class="btns">
+        <button id="b1" onclick="setPtr(1)">◀ rollback to dream-0001</button>
+        <button id="b2" class="on" onclick="setPtr(2)">advance to dream-0002 ▶</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= FAILURES ======================= -->
+<section id="failures">
+  <div class="wrap">
+    <div class="eyebrow reveal">08 · resilience</div>
+    <h2 class="reveal">Failure modes &amp; mitigations</h2>
+    <p class="lead reveal">Every failure observed during this session's build — plus the structural ones — has a defined response. Nothing halts the pipeline.</p>
+
+    <div class="tbl-wrap reveal">
+      <table>
+        <thead><tr><th>Failure</th><th>Detection</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr><td><b>Ollama down / unreachable</b></td><td><code>available()</code> 5s probe</td><td>heuristic consolidator runs; pipeline continues</td></tr>
+          <tr><td><b>LLM timeout</b> (large batch)</td><td><code>TimeoutError</code> in <code>chat()</code></td><td>caught → <code>stats.llm_error</code> → heuristic; 900s timeout + 120K budget make it rare</td></tr>
+          <tr><td><b>Malformed LLM JSON</b></td><td><code>_extract_json()</code> raises</td><td>fence-stripping + brace-slicing, then heuristic fallback</td></tr>
+          <tr><td><b>Corrupt source line</b></td><td><code>JSONDecodeError</code></td><td>line skipped, rest of session continues</td></tr>
+          <tr><td><b>Source tool absent</b></td><td><code>available()</code></td><td>collector skipped with <code>[skip]</code> message</td></tr>
+          <tr><td><b>Crash during index write</b></td><td>—</td><td><code>tmp + os.replace</code> atomic rename</td></tr>
+          <tr><td><b>Bad dream produced</b></td><td><code>eval</code> degradation warning</td><td><code>rollback dream-NNNN</code> — pointer-only, instant</td></tr>
+          <tr><td><b>Nothing new to dream</b></td><td>empty batch</td><td>early return + <code>dream_skipped</code> log, no artifact</td></tr>
+          <tr><td><b>Concurrent sync</b></td><td>—</td><td>exclusive <code>"x"</code> create on session files</td></tr>
+          <tr><td><b>Dream id collision</b></td><td><code>FileExistsError</code></td><td>immutable ids; zero-padded sort == chronological</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= CONFIG ======================= -->
+<section id="config">
+  <div class="wrap">
+    <div class="eyebrow reveal">09 · operations</div>
+    <h2 class="reveal">Configuration &amp; extension</h2>
+
+    <div class="tbl-wrap reveal" style="margin-bottom:18px">
+      <table>
+        <thead><tr><th>Env var</th><th>Default</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>DREAM_ROOT</code></td><td><code>~/.dream-memory</code></td><td>storage root for both layers</td></tr>
+          <tr><td><code>DREAM_MODEL</code></td><td><code>gpt-oss:20b</code></td><td>Ollama model used for dreaming</td></tr>
+          <tr><td><code>DREAM_MAX_SESSIONS</code></td><td><code>20</code></td><td>batch cap for <code>run_dream.sh</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="strip">
+      <div class="st i reveal"><div class="ic">➕</div><h4>New agent</h4>
+        <p>Implement <span class="inline">available()</span> + <span class="inline">collect()</span>, append to <span class="inline">all_collectors()</span>. Store, dreamer and recall unchanged.</p><div class="bar" style="--d:.1s"></div></div>
+      <div class="st p reveal"><div class="ic">🧠</div><h4>Better extraction</h4>
+        <p>Swap <span class="inline">DREAM_SYSTEM</span> or add a summarization pass — artifact format and rollback semantics stay identical.</p><div class="bar" style="--d:.25s"></div></div>
+      <div class="st n reveal"><div class="ic">📐</div><h4>Semantic recall</h4>
+        <p>Replace <span class="inline">recall._score()</span> with embeddings; the two-layer result shape never changes.</p><div class="bar" style="--d:.4s"></div></div>
+      <div class="st n reveal"><div class="ic">⏰</div><h4>Scheduling</h4>
+        <p><span class="inline">run_dream.sh</span> under cron or a systemd timer; grep <span class="inline">ALERT</span> for regressions.</p><div class="bar" style="--d:.55s"></div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center">
+    <div>Generated from <a href="architecture.md">architecture.md</a> · full session evidence in <a href="runlog.md">runlog.md</a> · pipeline docs in <a href="README_DREAM_MEMORY.md">README_DREAM_MEMORY.md</a></div>
+    <div style="font-family:var(--mono);font-size:11.5px">open: <span class="kbd">xdg-open architecture.html</span></div>
+  </div>
+</footer>
+
+<script>
+  // scroll progress
+  const prog = document.getElementById('progress');
+  addEventListener('scroll', () => {
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+  }, {passive:true});
+
+  // reveal on scroll
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); }
+  }), {threshold:.14, rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // card cursor glow
+  document.querySelectorAll('.card').forEach(c => c.addEventListener('pointermove', e => {
+    const r = c.getBoundingClientRect();
+    c.style.setProperty('--mx', ((e.clientX-r.left)/r.width*100)+'%');
+    c.style.setProperty('--my', ((e.clientY-r.top)/r.height*100)+'%');
+  }));
+
+  // rollback demo
+  function setPtr(n){
+    const rb = document.getElementById('rb');
+    rb.classList.toggle('p1', n===1);
+    rb.classList.toggle('p2', n===2);
+    document.getElementById('rbTarget').textContent = 'dream-000'+n;
+    document.getElementById('rbNote').textContent = n===1
+      ? 'rolled back · dream-0002 still on disk, just not active · episodic untouched'
+      : 'pointer at dream-0002 · recall + eval use this artifact';
+    document.getElementById('b1').classList.toggle('on', n===1);
+    document.getElementById('b2').classList.toggle('on', n===2);
+  }
+</script>
+</body>
+</html>
