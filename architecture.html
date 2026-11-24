@@ -289,15 +289,15 @@
     <div class="eyebrow reveal">01 · system design</div>
     <h2 class="reveal">The three flows</h2>
     <p class="lead reveal">Everything the system does is one of three currents.
-       <b style="color:var(--info)">Information</b> moves raw transcripts down into memory.
-       <b style="color:var(--prompt)">Prompts</b> move context in and out of the local model.
+       <b style="color:var(--info)">Prompt / response</b> carries user and agent messages from the four tools down into memory.
+       <b style="color:var(--prompt)">Information</b> is the distilled context packed into the model call and the extraction it returns.
        <b style="color:var(--intel)">Intelligence</b> moves curated memories back out to the tools that need them.
        Arrows only ever point down — nothing writes upward into a higher-trust layer.</p>
 
     <div class="legend reveal">
-      <span class="lg"><span class="sw i"></span> information — raw transcripts</span>
-      <span class="lg"><span class="sw p"></span> prompt / response — LLM context</span>
-      <span class="lg"><span class="sw n"></span> intelligence — consolidated memory</span>
+      <span class="lg"><span class="sw i"></span> prompt / response — user &amp; agent messages</span>
+      <span class="lg"><span class="sw p"></span> information — distilled context for the model</span>
+      <span class="lg"><span class="sw n"></span> intelligence — crystallized memory</span>
     </div>
 
     <div class="diagram-card reveal">
@@ -351,9 +351,9 @@
         <!-- dreamer <-> ollama -->
         <path class="route r-prompt" d="M668,340 C652,378 650,410 656,440" marker-end="url(#ah-prompt)"/>
         <path class="route r-prompt" d="M756,440 C764,410 762,378 748,340" marker-end="url(#ah-prompt)"/>
-        <!-- dreamer -> consolidated -->
+        <!-- dreamer -> crystallized -->
         <path class="route r-intel" d="M820,258 C862,258 862,300 900,300" marker-end="url(#ah-intel)"/>
-        <!-- consolidated -> outputs -->
+        <!-- crystallized -> outputs -->
         <path class="route r-intel" d="M1110,300 C1148,300 1150,182 1184,182" marker-end="url(#ah-intel)"/>
         <path class="route r-intel" d="M1110,302 L1184,302" marker-end="url(#ah-intel)"/>
         <path class="route r-intel" d="M1110,300 C1148,300 1150,422 1184,422" marker-end="url(#ah-intel)"/>
@@ -424,15 +424,15 @@
             <animate attributeName="opacity" values="1;.25;1" dur="1.8s" repeatCount="indefinite"/>
           </circle>
         </g>
-        <text class="t-mono" x="640" y="392" fill="#c084fc">prompt ▼</text>
-        <text class="t-mono" x="762" y="392" fill="#c084fc">▲ response</text>
+        <text class="t-mono" x="636" y="392" fill="#c084fc">context ▼</text>
+        <text class="t-mono" x="754" y="392" fill="#c084fc">▲ extraction</text>
         <text class="t-mono" x="705" y="566" text-anchor="middle">heuristic fallback when unreachable</text>
 
-        <!-- ============ CONSOLIDATED ============ -->
+        <!-- ============ CRYSTALLIZED ============ -->
         <g class="node">
           <rect x="900" y="150" width="210" height="300" rx="16" fill="url(#gPanel)" stroke="#fbbf24" stroke-opacity=".7"/>
           <rect x="900" y="150" width="210" height="4" rx="2" fill="#fbbf24"/>
-          <text class="t-title" x="1005" y="192" text-anchor="middle" fill="#ffd97a">CONSOLIDATED</text>
+          <text class="t-title" x="1005" y="192" text-anchor="middle" fill="#ffd97a">CRYSTALLIZED</text>
           <text class="t-sub" x="1005" y="212" text-anchor="middle">layer 2 · curated memory</text>
           <g transform="translate(1005,258)">
             <circle class="halo" r="24" fill="#fbbf24" opacity=".2"/>
@@ -465,7 +465,7 @@
         </g>
         <text class="t-mono" x="1259" y="512" text-anchor="middle" fill="#fbbf24">◤ CONSUMERS ◥</text>
 
-        <!-- ============ PARTICLES: information ============ -->
+        <!-- ============ PARTICLES: prompt / response ============ -->
         <g>
           <g><animateMotion dur="7.5s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#routeInfo"/></animateMotion>
             <circle r="13" fill="#38bdf8" opacity=".18"/><circle r="5" fill="#38bdf8"/></g>
@@ -475,7 +475,7 @@
             <circle r="13" fill="#38bdf8" opacity=".18"/><circle r="5" fill="#38bdf8"/></g>
         </g>
 
-        <!-- ============ PARTICLES: prompt / response ============ -->
+        <!-- ============ PARTICLES: information ============ -->
         <g>
           <g><animateMotion dur="3.4s" repeatCount="indefinite" begin="0s"><mpath xlink:href="#routePrompt"/></animateMotion>
             <circle r="12" fill="#c084fc" opacity=".2"/><circle r="4.5" fill="#c084fc"/></g>
@@ -497,7 +497,7 @@
             <circle r="13" fill="#fbbf24" opacity=".18"/><circle r="5" fill="#fbbf24"/></g>
         </g>
       </svg>
-      <div class="cap">blue: transcripts → store → dreamer &nbsp;·&nbsp; purple: prompt/response ↔ local model &nbsp;·&nbsp; gold: curated memory → consumers</div>
+      <div class="cap">blue: user &amp; agent messages → store → dreamer &nbsp;·&nbsp; purple: distilled context ↔ local model &nbsp;·&nbsp; gold: curated intelligence → consumers</div>
     </div>
   </div>
 </section>
@@ -553,7 +553,7 @@
       <div class="arrow-mid reveal">READ&nbsp;ONLY&nbsp;▸</div>
 
       <div class="layer co reveal">
-        <h3>Layer 2 — Consolidated <span class="tag co">VERSIONED</span></h3>
+        <h3>Layer 2 — Crystallized <span class="tag co">VERSIONED</span></h3>
         <p style="font-size:13.4px;color:var(--dim);margin-top:8px">Curated abstract memory produced by dreaming.
            The "neocortex": slow, selective, revisable — but every revision is a new file.</p>
         <div class="files">
@@ -590,7 +590,7 @@
         <div class="step" style="--i:5"><span class="n">06</span><span class="txt"><b>Call local Ollama</b>JSON mode, temp 0.2, 900s timeout</span></div>
         <div class="step" style="--i:6"><span class="n">07</span><span class="txt"><b>Any exception?</b>→ record <span class="inline">llm_error</span>, fall back to regex heuristic</span></div>
         <div class="step" style="--i:7"><span class="n">08</span><span class="txt"><b>Validate &amp; clamp</b>categories forced to the fixed 5-way taxonomy</span></div>
-        <div class="step" style="--i:8"><span class="n">09</span><span class="txt"><b>Dedup + importance cap</b>“plan to forget” — consolidated only</span></div>
+        <div class="step" style="--i:8"><span class="n">09</span><span class="txt"><b>Dedup + importance cap</b>“plan to forget” — crystallized only</span></div>
         <div class="step" style="--i:9"><span class="n">10</span><span class="txt"><b>Save NEW artifact + repoint</b>immutable dream-NNNN, then log to history</span></div>
       </div>
 
@@ -628,7 +628,7 @@
           <li><b>from_dict()</b> drops unknown keys → old dreams stay loadable</li>
         </ul></div>
 
-      <div class="card reveal"><div class="head"><span class="fn">collectors.py</span><span class="flowtag ft-i">information</span></div>
+      <div class="card reveal"><div class="head"><span class="fn">collectors.py</span><span class="flowtag ft-i">prompt / response</span></div>
         <p>Four collectors, one interface: <span class="inline">available()</span> + <span class="inline">collect(limit)</span> → <span class="inline">List[Session]</span>.</p>
         <ul>
           <li><b>OpenCodeCollector</b> — session_v2 ⨝ session_message, JSON content parts</li>
@@ -639,7 +639,7 @@
           <li>SQLite opened <span class="inline">mode=ro</span> · JSONL <span class="inline">errors="replace"</span></li>
         </ul></div>
 
-      <div class="card reveal"><div class="head"><span class="fn">episodic.py</span><span class="flowtag ft-i">information</span></div>
+      <div class="card reveal"><div class="head"><span class="fn">episodic.py</span><span class="flowtag ft-i">prompt / response</span></div>
         <p><b>EpisodicStore</b> — safety principle #1 made concrete.</p>
         <ul>
           <li><b>add()</b> — existence check → <span class="inline">open(path,"x")</span> exclusive create</li>
@@ -649,7 +649,7 @@
           <li><b>ingest_log.jsonl</b> — stored / skip_duplicate audit trail</li>
         </ul></div>
 
-      <div class="card reveal"><div class="head"><span class="fn">dreaming.py</span><span class="flowtag ft-p">prompt</span></div>
+      <div class="card reveal"><div class="head"><span class="fn">dreaming.py</span><span class="flowtag ft-p">information</span></div>
         <p>The engine — five parts, largest module.</p>
         <ul>
           <li><b>LocalLLM</b> — stdlib urllib Ollama client, JSON mode, 900s timeout</li>
@@ -672,7 +672,7 @@
       <div class="card reveal"><div class="head"><span class="fn">recall.py</span><span class="flowtag ft-n">intelligence</span></div>
         <p>Two-layer retrieval — curated answer first, raw evidence beneath.</p>
         <ul>
-          <li><b>Consolidated</b> — 1.0 × token-overlap + 0.3 × importance, threshold ≥ 0.15</li>
+          <li><b>Crystallized</b> — 1.0 × token-overlap + 0.3 × importance, threshold ≥ 0.15</li>
           <li><b>Episodic</b> — 0.6 × overlap over user <i>and</i> assistant messages</li>
           <li><b>_tokenize()</b> — lowercase, non-alnum split, len &gt; 2</li>
           <li>Pure stdlib — no TF-IDF, no embeddings, zero deps</li>
@@ -764,7 +764,7 @@
         <div class="verify">✓ 100% retention, 0 lost (runlog §9)</div></div>
 
       <div class="sf reveal"><div class="num">04</div><h3>Plan to forget</h3>
-        <p>Consolidated memory is capped by importance (default 60). Selective forgetting happens only in layer 2 — episodic is never pruned.</p>
+        <p>Crystallized memory is capped by importance (default 60). Selective forgetting happens only in layer 2 — episodic is never pruned.</p>
         <div class="verify">✓ entries_pruned tracked in stats</div></div>
     </div>
   </div>
