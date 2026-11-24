@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Understanding the Output - Dreaming in AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.8;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #764ba2;
+            font-size: 1.5em;
+            margin: 30px 0 20px;
+        }
+
+        /* Output Block */
+        .output-block {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 25px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.95em;
+            line-height: 1.8;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .output-block .comment {
+            color: #68d391;
+        }
+
+        .output-block .highlight {
+            background: rgba(102, 126, 234, 0.3);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
+
+        .output-block .important {
+            color: #fc8181;
+            font-weight: bold;
+        }
+
+        .output-block .success {
+            color: #68d391;
+        }
+
+        .output-block .info {
+            color: #90cdf4;
+        }
+
+        /* Explanation Box */
+        .explanation {
+            background: #e3f2fd;
+            border-left: 5px solid #2196f3;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 0 15px 15px 0;
+        }
+
+        .explanation h4 {
+            color: #1976d2;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .explanation p {
+            margin-bottom: 15px;
+            font-size: 1.05em;
+        }
+
+        .explanation ul {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+
+        .explanation li {
+            margin-bottom: 10px;
+            font-size: 1.05em;
+        }
+
+        /* Visual Diagram */
+        .visual-diagram {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+
+        .diagram-title {
+            font-size: 1.3em;
+            color: #667eea;
+            margin-bottom: 25px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* Flow Diagram */
+        .flow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .flow-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 120px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .flow-item .num {
+            font-size: 1.8em;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+
+        .flow-item .text {
+            font-size: 0.95em;
+            margin-top: 5px;
+        }
+
+        .flow-arrow {
+            font-size: 2em;
+            color: #667eea;
+        }
+
+        /* Comparison */
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .comparison-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            border-top: 5px solid;
+        }
+
+        .comparison-card.openai {
+            border-top-color: #10a37f;
+        }
+
+        .comparison-card.anthropic {
+            border-top-color: #d97706;
+        }
+
+        .comparison-card h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.3em;
+        }
+
+        /* Step by Step */
+        .step {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            position: relative;
+            padding-left: 80px;
+        }
+
+        .step::before {
+            content: attr(data-step);
+            position: absolute;
+            left: 20px;
+            top: 25px;
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .step h4 {
+            color: #667eea;
+            margin-top: 0;
+            font-size: 1.3em;
+        }
+
+        /* Important Box */
+        .important-box {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            border: 3px solid #ff6b6b;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+        }
+
+        .important-box h3 {
+            color: #c0392b;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Success Box */
+        .success-box {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            border: 3px solid #2ecc71;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+        }
+
+        .success-box h3 {
+            color: #27ae60;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            border-bottom: 2px dotted #667eea;
+            cursor: help;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 12px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -125px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.5;
+            font-weight: normal;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+
+            .flow {
+                flex-direction: column;
+            }
+
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .section h2 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📊 Understanding the Output</h1>
+            <p style="font-size: 1.2em; color: #666; margin-top: 10px;">
+                A detailed explanation of what <code>compare_architectures.py</code> prints and why
+            </p>
+        </div>
+
+        <!-- Section 1: Overview -->
+        <div class="section">
+            <h2>🎯 What Does the Output Tell Us?</h2>
+            
+            <div class="explanation">
+                <h4>In Simple Terms</h4>
+                <p>
+                    When you run <code>python3 examples/compare_architectures.py</code>, it shows you 
+                    <strong>two different ways AI systems can learn from conversations</strong>. 
+                    The output tells you:
+                </p>
+                <ul>
+                    <li><strong>What happened</strong> - How memories were created and updated</li>
+                    <li><strong>How it worked</strong> - The differences between the two approaches</li>
+                    <li><strong>What the risks are</strong> - Potential problems with each approach</li>
+                </ul>
+            </div>
+
+            <div class="visual-diagram">
+                <div class="diagram-title">The Big Picture: What You're Seeing</div>
+                <div class="flow">
+                    <div class="flow-item">
+                        <div class="num">1</div>
+                        <div class="text">Conversations<br>happen</div>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-item">
+                        <div class="num">2</div>
+                        <div class="text">AI "dreams"<br>(learns)</div>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-item">
+                        <div class="num">3</div>
+                        <div class="text">Memories<br>created</div>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-item">
+                        <div class="num">4</div>
+                        <div class="text">Output shows<br>what happened</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: OpenAI Output -->
+        <div class="section">
+            <h2>🟢 OpenAI-Style Output Explained</h2>
+            
+            <div class="comparison">
+                <div class="comparison-card openai">
+                    <h3><span style="font-size: 1.5em;">🟢</span> OpenAI's Approach</h3>
+                    <p style="color: #666; margin-bottom: 15px;">Rewrites memory in place</p>
+                    <ul style="color: #555;">
+                        <li>Updates the same memory store</li>
+                        <li>Each pass builds on previous</li>
+                        <li>No rollback capability</li>
+                        <li>More aggressive approach</li>
+                    </ul>
+                </div>
+                <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.1);">
+                    <h3 style="color: #667eea; margin-top: 0;">📝 Key Points</h3>
+                    <p style="color: #666; margin-bottom: 15px;">Look for these in the output:</p>
+                    <ul style="color: #555;">
+                        <li><strong>Same Store ID</strong> - "memory_store_initial" stays the same</li>
+                        <li><strong>Entries Added</strong> - New memories created</li>
+                        <li><strong>Entries Updated</strong> - Existing memories modified</li>
+                        <li><strong>No Rollback</strong> - Previous state is overwritten</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>📖 Line-by-Line Explanation</h3>
+            
+            <div class="step" data-step="1">
+                <h4>Initial State</h4>
+                <p>The output shows what we started with:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># This shows our starting point</span>
+Initial memory store:
+  <span class="info">ID: memory_store_initial</span>          <span class="comment">← Name of the memory store</span>
+  <span class="info">Size: 2 entries</span>                  <span class="comment">← We start with 2 memories</span>
+  <span class="info">Total importance: 1.60</span>           <span class="comment">← How important these memories are</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>What This Means</h4>
+                <p>Before dreaming starts, we have a memory store with 2 items:</p>
+                <ul>
+                    <li><strong>Memory 1:</strong> "User is planning a trip to Singapore" (importance: 0.7)</li>
+                    <li><strong>Memory 2:</strong> "User is vegetarian" (importance: 0.9)</li>
+                </ul>
+                <p>Total importance = 0.7 + 0.9 = 1.60</p>
+            </div>
+
+            <div class="step" data-step="2">
+                <h4>Processing Sessions</h4>
+                <p>The AI processes 3 conversations:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># Processing 3 conversations</span>
+Processing 3 sessions...
+
+<span class="success">Dreaming complete!</span>
+  <span class="info">Sessions processed: 3</span>            <span class="comment">← How many conversations we analyzed</span>
+  <span class="info">Entries added: 4</span>                 <span class="comment">← New memories created</span>
+  <span class="info">Entries updated: 9</span>               <span class="comment">← Existing memories updated</span>
+  <span class="info">Entries removed: 0</span>               <span class="comment">← No memories deleted</span>
+  <span class="info">Duration: 0.000 seconds</span>          <span class="comment">← How long it took</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>What Happened Here</h4>
+                <p>The AI analyzed 3 conversations and:</p>
+                <ul>
+                    <li><strong>Added 4 new memories:</strong> New information discovered</li>
+                    <li><strong>Updated 9 memories:</strong> Existing memories got more information</li>
+                    <li><strong>Removed 0 memories:</strong> Nothing was deleted</li>
+                </ul>
+                <p><strong>Why 9 updates but only 4 additions?</strong> Because some memories were already there, and the new conversations added more detail to them.</p>
+            </div>
+
+            <div class="step" data-step="3">
+                <h4>Final State</h4>
+                <p>The result after dreaming:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># This shows what we ended up with</span>
+Final memory store <span class="important">(rewritten in place)</span>:
+  <span class="info">ID: memory_store_initial</span>          <span class="comment">← Same ID! (this is key)</span>
+  <span class="info">Size: 6 entries</span>                  <span class="comment">← Now we have 6 memories</span>
+  <span class="info">Total importance: 4.30</span>           <span class="comment">← Importance increased</span>
+
+Memory entries:
+  <span class="highlight">[factual] User is planning a trip to Singapore; User is vegetarian</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+
+  <span class="highlight">[factual] User is vegetarian</span>
+    <span class="info">Importance: 0.90, Confidence: 0.95</span>
+
+  <span class="highlight">[preferences] User prefers hotels with strong ac and quiet dinners</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+
+  <span class="highlight">[factual] Trip is in July</span>
+    <span class="info">Importance: 0.60, Confidence: 0.70</span>
+
+  <span class="highlight">[preferences] User prefers wildlife photography opportunities</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+
+  <span class="highlight">[preferences] User prefers to visit gardens by the bay and night safari</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>Key Observations</h4>
+                <ul>
+                    <li><strong>Same ID:</strong> "memory_store_initial" - This means it's the same store, just updated</li>
+                    <li><strong>6 entries:</strong> We went from 2 to 6 memories</li>
+                    <li><strong>Importance increased:</strong> From 1.60 to 4.30</li>
+                    <li><strong>Merged memories:</strong> First entry shows two things merged together</li>
+                </ul>
+            </div>
+
+            <div class="important-box">
+                <h3>⚠️ The Risk with OpenAI's Approach</h3>
+                <p>
+                    Notice how the first memory entry says: "User is planning a trip to Singapore; User is vegetarian"
+                </p>
+                <p>
+                    This is an example of <strong>misgrouping</strong> - two different facts got merged together. 
+                    This is exactly the kind of problem Zhang's research warns about. If the AI keeps doing this, 
+                    it might lose important details over time.
+                </p>
+            </div>
+        </div>
+
+        <!-- Section 3: Anthropic Output -->
+        <div class="section">
+            <h2>🟠 Anthropic-Style Output Explained</h2>
+            
+            <div class="comparison">
+                <div class="comparison-card anthropic">
+                    <h3><span style="font-size: 1.5em;">🟠</span> Anthropic's Approach</h3>
+                    <p style="color: #666; margin-bottom: 15px;">Creates parallel artifact</p>
+                    <ul style="color: #555;">
+                        <li>Never modifies original</li>
+                        <li>Creates new memory store</li>
+                        <li>Can rollback if needed</li>
+                        <li>More cautious approach</li>
+                    </ul>
+                </div>
+                <div style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.1);">
+                    <h3 style="color: #667eea; margin-top: 0;">📝 Key Points</h3>
+                    <p style="color: #666; margin-bottom: 15px;">Look for these in the output:</p>
+                    <ul style="color: #555;">
+                        <li><strong>Different Store IDs</strong> - Original stays, new one created</li>
+                        <li><strong>Input Preserved</strong> - Original store unchanged</li>
+                        <li><strong>Comparison Possible</strong> - Can see before vs after</li>
+                        <li><strong>Rollback Available</strong> - Can revert if needed</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>📖 Line-by-Line Explanation</h3>
+            
+            <div class="step" data-step="1">
+                <h4>Input Store (Preserved)</h4>
+                <p>The original store is never touched:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># The original store is preserved</span>
+Input store <span class="success">(preserved)</span>:
+  <span class="info">ID: memory_store_initial</span>          <span class="comment">← Original store ID</span>
+  <span class="info">Size: 2 entries</span>                  <span class="comment">← Still has original 2 memories</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>What This Means</h4>
+                <p>
+                    Unlike OpenAI's approach, Anthropic <strong>never modifies the original store</strong>. 
+                    It's like making a photocopy before making changes. You can always go back to the original.
+                </p>
+            </div>
+
+            <div class="step" data-step="2">
+                <h4>Output Store (New Artifact)</h4>
+                <p>A new store is created with the dream results:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># A new store is created</span>
+Output store <span class="important">(new artifact)</span>:
+  <span class="info">ID: memory_store_initial_dreamed_1</span>   <span class="comment">← Different ID! (this is key)</span>
+  <span class="info">Size: 6 entries</span>                     <span class="comment">← Now has 6 memories</span>
+  <span class="info">Total importance: 4.30</span>              <span class="comment">← Same as OpenAI's result</span>
+
+Memory entries in new store:
+  <span class="highlight">[factual] User is planning a trip to Singapore; User is vegetarian</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+
+  <span class="highlight">[factual] User is vegetarian</span>
+    <span class="info">Importance: 0.90, Confidence: 0.95</span>
+
+  <span class="highlight">[preferences] User prefers hotels with strong ac and quiet dinners</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+
+  <span class="highlight">[factual] Trip is in July</span>
+    <span class="info">Importance: 0.60, Confidence: 0.70</span>
+
+  <span class="highlight">[preferences] User prefers wildlife photography opportunities</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+
+  <span class="highlight">[preferences] User prefers to visit gardens by the bay and night safari</span>
+    <span class="info">Importance: 0.70, Confidence: 0.80</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>Key Observations</h4>
+                <ul>
+                    <li><strong>Different ID:</strong> "memory_store_initial_dreamed_1" - This is a NEW store</li>
+                    <li><strong>Same content:</strong> The memories are the same as OpenAI's result</li>
+                    <li><strong>But safer:</strong> The original store is still intact</li>
+                </ul>
+            </div>
+
+            <div class="step" data-step="3">
+                <h4>Evaluation & Rollback</h4>
+                <p>Anthropic's approach allows checking if the dream helped:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># This is the key difference!</span>
+Dream evaluation:
+  <span class="info">Input score: 0.80</span>                  <span class="comment">← How good was the original store?</span>
+  <span class="info">New score: 0.80</span>                   <span class="comment">← How good is the new store?</span>
+  <span class="info">Improvement: 0.00</span>                 <span class="comment">← No improvement</span>
+  <span class="important">Helped: False</span>                     <span class="comment">← Dream didn't help</span>
+  <span class="important">Recommendation: reject</span>            <span class="comment">← Should we keep this dream?</span>
+
+<span class="success">Since dream didn't help, we can rollback!</span>
+  <span class="info">This is the first dream, no previous store to rollback to</span>
+  <span class="info">But the input store is still preserved!</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>What This Means</h4>
+                <p>This is the <strong>key advantage</strong> of Anthropic's approach:</p>
+                <ul>
+                    <li><strong>We can evaluate:</strong> Did the dream improve things?</li>
+                    <li><strong>We can rollback:</strong> If it didn't help, revert to original</li>
+                    <li><strong>Safer:</strong> We can always go back to the original store</li>
+                </ul>
+                <p>
+                    In this case, the dream didn't improve anything (score stayed at 0.80), 
+                    so we'd recommend rejecting this dream and keeping the original store.
+                </p>
+            </div>
+
+            <div class="success-box">
+                <h3>✅ The Safety Advantage</h3>
+                <p>
+                    Anthropic's approach is like <strong>making a backup before editing a document</strong>. 
+                    If the edits make things worse, you can always revert to the original. 
+                    This is why this approach is considered safer for production systems.
+                </p>
+            </div>
+        </div>
+
+        <!-- Section 4: Comparison -->
+        <div class="section">
+            <h2>⚖️ Side-by-Side Comparison</h2>
+            
+            <div class="visual-diagram">
+                <div class="diagram-title">Key Differences in the Output</div>
+                
+                <div style="background: white; padding: 30px; border-radius: 15px; margin-top: 20px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                                <th style="padding: 15px; text-align: left;">What You See</th>
+                                <th style="padding: 15px; text-align: center;">🟢 OpenAI</th>
+                                <th style="padding: 15px; text-align: center;">🟠 Anthropic</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px;"><strong>Store ID</strong></td>
+                                <td style="padding: 15px; text-align: center; color: #10a37f;">Same (rewritten)</td>
+                                <td style="padding: 15px; text-align: center; color: #d97706;">Different (new)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #e9ecef; background: #f8f9fa;">
+                                <td style="padding: 15px;"><strong>Original Store</strong></td>
+                                <td style="padding: 15px; text-align: center; color: #e74c3c;">Overwritten</td>
+                                <td style="padding: 15px; text-align: center; color: #27ae60;">Preserved</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px;"><strong>Rollback</strong></td>
+                                <td style="padding: 15px; text-align: center; color: #e74c3c;">❌ Not possible</td>
+                                <td style="padding: 15px; text-align: center; color: #27ae60;">✅ Possible</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #e9ecef; background: #f8f9fa;">
+                                <td style="padding: 15px;"><strong>Evaluation</strong></td>
+                                <td style="padding: 15px; text-align: center;">After the fact</td>
+                                <td style="padding: 15px; text-align: center;">Before vs After</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 15px;"><strong>Risk Level</strong></td>
+                                <td style="padding: 15px; text-align: center; color: #e74c3c;">Higher</td>
+                                <td style="padding: 15px; text-align: center; color: #27ae60;">Lower</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="explanation">
+                <h4>The Bottom Line</h4>
+                <p>
+                    <strong>OpenAI's approach</strong> is faster and simpler, but riskier because you can't undo changes.
+                </p>
+                <p>
+                    <strong>Anthropic's approach</strong> is safer because you can always revert to the original 
+                    if the dream doesn't help. This is why Anthropic's approach is recommended for production systems.
+                </p>
+            </div>
+        </div>
+
+        <!-- Section 5: Zhang Benchmark -->
+        <div class="section">
+            <h2>🔬 Understanding the Zhang Benchmark</h2>
+            
+            <p style="font-size: 1.1em; margin-bottom: 30px;">
+                The output also shows tests from Zhang's research. These test for <strong>common problems</strong> 
+                that happen when AI rewrites its own memory.
+            </p>
+
+            <div class="step" data-step="1">
+                <h4>Misgrouping Test</h4>
+                <p>Tests if different things got merged together:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># Test 1: Did distinct episodes merge?</span>
+MISGROUPING:
+  <span class="important">Passed: False</span>                     <span class="comment">← FAILED!</span>
+  <span class="info">Details: 3 pairs of distinct episodes were merged</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>What This Means</h4>
+                <p>
+                    The test found that <strong>3 pairs of different conversations got merged together</strong>. 
+                    For example:
+                </p>
+                <ul>
+                    <li>"Asked about Python" and "Asked about JavaScript" might have been merged</li>
+                    <li>"Planning trip to Singapore" and "Planning trip to Tokyo" might have been merged</li>
+                </ul>
+                <p>
+                    This is bad because the AI might lose important distinctions between different topics.
+                </p>
+            </div>
+
+            <div class="step" data-step="2">
+                <h4>Interference Test</h4>
+                <p>Tests if context got lost when simplifying:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># Test 2: Did context get lost?</span>
+INTERFERENCE:
+  <span class="important">Passed: False</span>                     <span class="comment">← FAILED!</span>
+  <span class="info">Details: 2 lessons lost their applicability conditions</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>What This Means</h4>
+                <p>
+                    The test found that <strong>2 lessons lost their context</strong>. For example:
+                </p>
+                <ul>
+                    <li>"When using Python, use list comprehensions" might have become just "use list comprehensions"</li>
+                    <li>The important context (WHEN to use it) was lost</li>
+                </ul>
+                <p>
+                    This is bad because the AI might apply the wrong advice in the wrong situation.
+                </p>
+            </div>
+
+            <div class="step" data-step="3">
+                <h4>Overfit Test</h4>
+                <p>Tests if specific details got lost:</p>
+            </div>
+            
+            <div class="output-block">
+<pre>
+<span class="comment"># Test 3: Did specific details get lost?</span>
+OVERFIT:
+  <span class="important">Passed: False</span>                     <span class="comment">← FAILED!</span>
+  <span class="info">Details: 3 specific selectors were lost</span>
+</pre>
+            </div>
+
+            <div class="explanation">
+                <h4>What This Means</h4>
+                <p>
+                    The test found that <strong>3 specific details were lost</strong>. For example:
+                </p>
+                <ul>
+                    <li>"When user is vegetarian" might have been deleted</li>
+                    <li>"When user prefers quiet places" might have been deleted</li>
+                </ul>
+                <p>
+                    This is bad because the AI might forget important preferences over time.
+                </p>
+            </div>
+
+            <div class="important-box">
+                <h3>⚠️ What This Tells Us</h3>
+                <p>
+                    All three tests failed, which means the simple memory consolidation approach has 
+                    <strong>significant problems</strong>. This is exactly what Zhang's research warns about.
+                </p>
+                <p>
+                    <strong>The solution:</strong> Use episodic memory (keep raw transcripts) instead of 
+                    abstract memory (compressed summaries). This is why Anthropic's approach of preserving 
+                    the original is safer.
+                </p>
+            </div>
+        </div>
+
+        <!-- Section 6: What to Do Next -->
+        <div class="section">
+            <h2>🚀 What to Do Next</h2>
+            
+            <div class="success-box">
+                <h3>✅ You Now Understand the Output!</h3>
+                <p>
+                    You've learned how to read and understand the output of <code>compare_architectures.py</code>. 
+                    Here's what you can do next:
+                </p>
+            </div>
+
+            <div class="step" data-step="1">
+                <h4>Experiment with the Code</h4>
+                <p>Try modifying the code to see how it changes the output:</p>
+                <div style="background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 8px; font-family: monospace; margin-top: 10px;">
+                    nano core/consolidation/openai_style.py
+                </div>
+                <p style="margin-top: 15px;"><strong>Things to try:</strong></p>
+                <ul>
+                    <li>Change <code>decay_rate</code> to see how memories fade faster</li>
+                    <li>Change <code>threshold</code> to see how pruning works</li>
+                    <li>Add new memory types</li>
+                </ul>
+            </div>
+
+            <div class="step" data-step="2">
+                <h4>Run More Tests</h4>
+                <p>Create your own test cases:</p>
+                <div style="background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 8px; font-family: monospace; margin-top: 10px;">
+                    nano my_test.py
+                </div>
+                <p style="margin-top: 15px;">Test with different types of conversations and see what happens.</p>
+            </div>
+
+            <div class="step" data-step="3">
+                <h4>Read More</h4>
+                <p>Check out the documentation:</p>
+                <ul>
+                    <li><code>learning_guide.html</code> - Complete learning guide</li>
+                    <li><code>DREAMING_IN_AI.md</code> - Concept explanation</li>
+                    <li><code>README.md</code> - Project overview</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="section" style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h2 style="color: white; border-bottom-color: rgba(255,255,255,0.3);">🎉 Great Job!</h2>
+            <p style="font-size: 1.2em; margin-bottom: 20px; opacity: 0.95;">
+                You now understand the output and can explain it to others!
+            </p>
+            <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <div style="background: rgba(255,255,255,0.2); padding: 20px 40px; border-radius: 15px; cursor: pointer;" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+                    <strong>↑ Back to Top</strong>
+                </div>
+                <div style="background: rgba(255,255,255,0.2); padding: 20px 40px; border-radius: 15px; cursor: pointer;" onclick="window.location.href='learning_guide.html'">
+                    <strong>📚 Read Full Guide</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
