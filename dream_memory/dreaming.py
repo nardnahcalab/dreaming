@@ -113,7 +113,7 @@ def _build_dream_prompt(sessions: List[Session],
     # context windows (~100K tokens). Split evenly across the batch.
     total_budget = 120_000
     per_session = max(2_000, min(12_000, total_budget // max(1, len(sessions))))
-    # Leave room for the previous consolidated memory
+    # Leave room for the previous crystallized memory
     prev_json = ""
     if previous_entries:
         prev_json = json.dumps([e.to_dict() for e in previous_entries],
@@ -123,7 +123,7 @@ def _build_dream_prompt(sessions: List[Session],
 
     parts = []
     if previous_entries:
-        parts.append("EXISTING CONSOLIDATED MEMORY (from previous dream):\n" +
+        parts.append("EXISTING CRYSTALLIZED MEMORY (from previous dream):\n" +
                      prev_json)
         parts.append("\nUpdate rule: keep still-relevant entries, revise stale "
                      "ones (e.g. 'planning trip' -> 'trip completed' if now "
@@ -140,7 +140,7 @@ def _build_dream_prompt(sessions: List[Session],
         parts.append(header)
         parts.append(s.transcript_text(max_chars=per_session))
 
-    parts.append("\nProduce the consolidated memory JSON now.")
+    parts.append("\nProduce the crystallized memory JSON now.")
     return "\n".join(parts)
 
 

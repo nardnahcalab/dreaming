@@ -81,7 +81,7 @@ class Session:
 @dataclass
 class MemoryEntry:
     """
-    A single piece of consolidated (abstract) memory produced by dreaming.
+    A single piece of crystallized (abstract) memory produced by dreaming.
 
     Unlike episodic sessions, these CAN be revised by later dreams --
     but each dream writes a NEW artifact, so every previous version

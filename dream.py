@@ -10,8 +10,8 @@ Usage:
   python3 dream.py sync              # ingest new sessions from all tools
   python3 dream.py status            # show memory store statistics
   python3 dream.py dream             # run one dreaming pass (consolidation)
-  python3 dream.py show              # print latest consolidated memory
-  python3 dream.py recall "query"    # search consolidated + episodic memory
+  python3 dream.py show              # print latest crystallized memory
+  python3 dream.py recall "query"    # search crystallized + episodic memory
   python3 dream.py eval              # compare last two dreams (health check)
   python3 dream.py rollback dream-0002   # repoint latest to older dream
   python3 dream.py models            # list local Ollama models
@@ -95,7 +95,7 @@ def cmd_status(args):
 
     ds = DreamStore(root)
     latest = ds.latest_id()
-    print(f"\nCONSOLIDATED MEMORY (output of dreaming)")
+    print(f"\nCRYSTALLIZED MEMORY (output of dreaming)")
     if latest:
         art = ds.load(latest)
         print(f"  Latest dream: {art.id} ({art.timestamp[:19]})")
@@ -215,13 +215,13 @@ def cmd_recall(args):
     print(f"Query: {args.query}")
     print(f"Dream: {res['dream'] or '(none)'}\n")
 
-    if res["consolidated"]:
-        print("CONSOLIDATED MEMORY (curated):")
-        for e in res["consolidated"]:
+    if res["crystallized"]:
+        print("CRYSTALLIZED MEMORY (curated):")
+        for e in res["crystallized"]:
             print(f"  [{e['score']:.2f}] ({e['category']}, "
                   f"imp={e['importance']:.1f}) {e['content']}")
     else:
-        print("CONSOLIDATED MEMORY: no matches")
+        print("CRYSTALLIZED MEMORY: no matches")
 
     print()
     if res["episodic"]:
@@ -345,7 +345,7 @@ def main():
     d.add_argument("--max-sessions", type=int, default=40)
     d.add_argument("--model", default=None, help="Ollama model name")
 
-    s = sub.add_parser("show", help="print consolidated memory")
+    s = sub.add_parser("show", help="print crystallized memory")
     s.add_argument("--dream", default=None, help="specific dream id")
 
     r = sub.add_parser("recall", help="search both memory layers")

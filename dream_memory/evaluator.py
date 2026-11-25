@@ -5,7 +5,7 @@ Measures what matters per the research:
   - Retention: how many important memories survived between dreams
   - Freshness: how much new information was incorporated
   - Degradation: did high-importance entries disappear? (Zhang's risk)
-  - Coverage: category balance across the consolidated store
+  - Coverage: category balance across the crystallized store
 """
 
 from typing import Dict, Any, List, Optional
@@ -66,7 +66,7 @@ def compare(before: Optional[DreamArtifact],
 
 def run_self_test() -> Dict[str, Any]:
     """
-    Zhang-style sanity test on the current dream: does the consolidated
+    Zhang-style sanity test on the current dream: does the crystallized
     store preserve high-importance, specific memories?
     """
     from .dreaming import DreamStore

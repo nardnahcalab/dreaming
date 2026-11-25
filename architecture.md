@@ -56,7 +56,7 @@ so degradation is always detectable and reversible.
                                 │  local Ollama gpt-oss:20b  ──or──  regex
                                 ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│  LAYER 2: CONSOLIDATED MEMORY  ~/.dream-memory/dreaming/               │
+│  LAYER 2: CRYSTALLIZED MEMORY  ~/.dream-memory/dreaming/               │
 │  (curated, versioned, rollback-able — the "neocortex")                 │
 │                                                                        │
 │  dream-0001.json  dream-0002.json  ...   immutable artifacts           │
@@ -125,7 +125,7 @@ needs to know which tool a session came from.
 |---|---|---|
 | `Message` | one normalized turn | `role` (`user`/`assistant`/`system`/`tool`), `content`, `timestamp`, `meta` |
 | `Session` | unit of episodic memory | `id`, `tool`, `messages[]`, `project`, `started`/`ended`, `title`, `meta` |
-| `MemoryEntry` | one consolidated memory | `content`, `category`, `importance`, `confidence`, `sources[]` (session hashes), `created_dream`, `last_seen_dream` |
+| `MemoryEntry` | one crystallized memory | `content`, `category`, `importance`, `confidence`, `sources[]` (session hashes), `created_dream`, `last_seen_dream` |
 | `DreamArtifact` | output of one dream | `id` (`dream-NNNN`), `entries[]`, `previous_dream`, `stats{}` |
 | *(helpers)* | | `now_iso()`, `stable_json()` |
 
@@ -237,7 +237,7 @@ markdown fences and surrounding prose.
   specificity rule (with a worked example), importance/confidence
   semantics, an anti-hallucination rule, and the strict output schema.
 - `_build_dream_prompt(sessions, previous_entries)` — assembles:
-  1. previous consolidated memory (JSON) + *update rule* (keep / revise /
+  1. previous crystallized memory (JSON) + *update rule* (keep / revise /
      drop / add),
   2. each new transcript with a header (`tool`, title, project, when),
   3. closing instruction.
@@ -322,11 +322,11 @@ evidence.
 
 | Layer | Scoring | Threshold |
 |---|---|---|
-| **Consolidated** | `1.0 × (hits/query_tokens)` over `content + category`, **+ 0.3 × importance** (curated memories rank higher) | `≥ 0.15` |
+| **Crystallized** | `1.0 × (hits/query_tokens)` over `content + category`, **+ 0.3 × importance** (curated memories rank higher) | `≥ 0.15` |
 | **Episodic** | `0.6 × (hits/query_tokens)` over each message (`user` **and** `assistant`) | `≥ 0.15` |
 
 - `_tokenize()` — lowercase split on non-alphanumerics, tokens >2 chars.
-- Returns `{query, consolidated[], episodic[], dream}` sorted by score,
+- Returns `{query, crystallized[], episodic[], dream}` sorted by score,
   episodic snippets flattened to 300 chars.
 - Pure stdlib (no TF-IDF/embeddings) — deliberate: keeps the system
   dependency-free. *(Two bugs were fixed here: role filter excluded
@@ -415,7 +415,7 @@ Total: ~1.8 MB for 53 sessions / 2,391 messages / 2 dreams
 | 1 | **Preserve the input** | write-once session files; `"x"` open mode; SQLite `mode=ro`; dreams immutable | re-sync = 0 writes (runlog §6) |
 | 2 | **Instrument the loop** | `ingest_log.jsonl` + `history.jsonl` (every dream, skip, error) | `dream.py history` |
 | 3 | **Compare with an eval** | `evaluator.compare()` + `run_self_test()`; degradation warning on lost `importance ≥ 0.7` | 100% retention dream-0001→0002 (runlog §9) |
-| 4 | **Plan to forget** | `max_entries` importance cap on consolidated store; **episodic never pruned** | `entries_pruned` in stats |
+| 4 | **Plan to forget** | `max_entries` importance cap on crystallized store; **episodic never pruned** | `entries_pruned` in stats |
 
 ---
 
@@ -457,7 +457,7 @@ Available local models on this machine: `gemma4:31b`, `nemotron3:33b`,
 - **Better extraction:** replace `DREAM_SYSTEM` / add a summarization pass —
   artifact format and rollback semantics are unaffected.
 - **Semantic recall:** swap `recall._score()` for embeddings; the two-layer
-  result shape (`consolidated[]` + `episodic[]`) stays the same.
+  result shape (`crystallized[]` + `episodic[]`) stays the same.
 - **Scheduled dreaming:** `run_dream.sh` under cron/systemd timer (documented
   in `README_DREAM_MEMORY.md`).
 

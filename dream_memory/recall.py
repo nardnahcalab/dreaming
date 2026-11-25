@@ -2,10 +2,10 @@
 Recall: search both memory layers.
 
 Two layers, matching the research:
-  - CONSOLIDATED (abstract): fast, curated, from the latest dream
+  - CRYSTALLIZED (abstract): fast, curated, from the latest dream
   - EPISODIC (raw): complete transcripts, exact source of truth
 
-Search is keyword/score based (no external deps). Consolidated entries
+Search is keyword/score based (no external deps). Crystallized entries
 score higher because they're curated; episodic fills gaps with raw evidence.
 """
 
@@ -35,13 +35,13 @@ def _score(query_tokens: List[str], text: str, base: float = 0.0) -> float:
 
 
 def search(root: str, query: str, limit: int = 10) -> Dict[str, Any]:
-    """Search consolidated memory first, then episodic for evidence."""
+    """Search crystallized memory first, then episodic for evidence."""
     qt = _tokenize(query)
 
-    # --- consolidated layer ---
+    # --- crystallized layer ---
     dream_store = DreamStore(root)
     latest = dream_store.latest_id()
-    consolidated: List[Dict[str, Any]] = []
+    crystallized: List[Dict[str, Any]] = []
     if latest:
         art = dream_store.load(latest)
         for e in art.entries:
@@ -49,7 +49,7 @@ def search(root: str, query: str, limit: int = 10) -> Dict[str, Any]:
             # importance boosts score (curated memories matter more)
             s += e.importance * 0.3
             if s >= 0.15:
-                consolidated.append({
+                crystallized.append({
                     "content": e.content,
                     "category": e.category,
                     "importance": e.importance,
@@ -57,7 +57,7 @@ def search(root: str, query: str, limit: int = 10) -> Dict[str, Any]:
                     "score": round(s, 3),
                     "dream": e.last_seen_dream or art.id,
                 })
-    consolidated.sort(key=lambda x: -x["score"])
+    crystallized.sort(key=lambda x: -x["score"])
 
     # --- episodic layer ---
     episodic_store = EpisodicStore(root)
@@ -81,7 +81,7 @@ def search(root: str, query: str, limit: int = 10) -> Dict[str, Any]:
 
     return {
         "query": query,
-        "consolidated": consolidated[:limit],
+        "crystallized": crystallized[:limit],
         "episodic": episodic[:limit],
         "dream": latest,
     }

@@ -29,7 +29,7 @@ memory by running "dreams" with a **local Ollama model**. Nothing leaves the box
 └──────────────────────────┬──────────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  CONSOLIDATED STORE  ~/.dream-memory/dreaming/                  │
+│  CRYSTALLIZED STORE  ~/.dream-memory/dreaming/                  │
 │  dream-0001.json, dream-0002.json, ...  (each NEW, immutable)   │
 │  latest.txt          pointer — rollback = repoint to older dream│
 │  history.jsonl       instrumentation log                        │
@@ -42,7 +42,7 @@ memory by running "dreams" with a **local Ollama model**. Nothing leaves the box
 python3 dream.py sync        # ingest new sessions from all 4 tools
 python3 dream.py status      # what's in memory
 python3 dream.py dream       # run one dreaming pass (local LLM)
-python3 dream.py show        # print consolidated memory
+python3 dream.py show        # print crystallized memory
 python3 dream.py recall "pytest preferences"   # search both layers
 python3 dream.py eval        # compare last two dreams (health check)
 python3 dream.py rollback dream-0001          # repoint latest
@@ -109,5 +109,5 @@ dream_memory/
   episodic.py            append-only store
   dreaming.py            Dreamer, DreamStore, LocalLLM, heuristic fallback
   evaluator.py           dream comparison + Zhang-style health self-test
-  recall.py              two-layer search (consolidated + episodic)
+  recall.py              two-layer search (crystallized + episodic)
 ```
