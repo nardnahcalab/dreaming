@@ -11,6 +11,10 @@ venv/
 *.db-wal
 *.db-shm
 
+# Local Dell Enterprise Hub deployment registry (machine-specific)
+.dell-ai-deployments.json
+.dell-ai-env.json
+
 # Editor / OS
 .DS_Store
 *.swp

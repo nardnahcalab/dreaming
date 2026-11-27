@@ -11,15 +11,23 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR" || exit 1
 
 export DREAM_ROOT="${DREAM_ROOT:-$HOME/.dream-memory}"
-export DREAM_MODEL="${DREAM_MODEL:-gpt-oss:20b}"
+export DREAM_MODEL="${DREAM_MODEL:-meta-models/Muse-Glimmer-30B}"
+export DREAM_DEH_SLUG="${DREAM_DEH_SLUG:-muse-glimmer}"
 
 echo "=== $(date -Is) memory cycle start ==="
 
-python3 dream.py sync || echo "WARN: sync failed"
-python3 dream.py dream --max-sessions "${DREAM_MAX_SESSIONS:-20}" || echo "WARN: dream failed"
+# Prefer the project venv (holds the dell-ai SDK); fall back to system python.
+if [ -x "$DIR/.venv/bin/python" ]; then
+  PY="$DIR/.venv/bin/python"
+else
+  PY="python3"
+fi
+
+"$PY" dream.py sync || echo "WARN: sync failed"
+"$PY" dream.py dream --max-sessions "${DREAM_MAX_SESSIONS:-20}" || echo "WARN: dream failed"
 
 # Health check: alert (log loudly) if high-importance memories were lost
-python3 dream.py eval 2>&1 | grep -q "DEGRADATION WARNING" \
+"$PY" dream.py eval 2>&1 | grep -q "DEGRADATION WARNING" \
   && echo "ALERT: degradation detected - consider rollback (dream.py eval)"
 
 echo "=== $(date -Is) memory cycle done ==="

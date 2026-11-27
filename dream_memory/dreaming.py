@@ -13,9 +13,11 @@ Architecture choice: Anthropic-style (parallel artifact).
   Each dream writes dream-NNNN.json as a NEW file. The previous dream
   file is never modified. `latest` is a pointer that can be rolled back.
 
-The "brain" of the dream is a local Ollama model (no cloud calls).
-If Ollama is unavailable, a deterministic heuristic consolidator runs
-so the pipeline still works offline.
+The "brain" of the dream is a Dell Enterprise Hub deployment (DEH): a
+Dockerised SGLang server discovered via the `dell-ai` SDK and spoken to
+over the OpenAI-compatible wire. Nothing leaves the box.
+If no DEH endpoint is reachable, a deterministic heuristic consolidator
+runs so the pipeline still works offline.
 """
 
 import json
@@ -28,52 +30,20 @@ from typing import List, Dict, Any, Optional, Tuple
 from .schema import (
     Session, MemoryEntry, DreamArtifact, now_iso
 )
+from .deh import DEHLLM, discover_endpoint
+from . import inbox as inbox_mod
+
+# Backwards-compatible name: the Ollama client is gone, DEHLLM replaces it.
+LocalLLM = DEHLLM
 
 
 # ---------------------------------------------------------------------------
-# LLM access (local Ollama)
+# LLM access (Dell Enterprise Hub -> OpenAI-compatible endpoint)
 # ---------------------------------------------------------------------------
 
-class LocalLLM:
-    def __init__(self, model: str = None, host: str = "http://localhost:11434",
-                 timeout: int = 900):
-        import os as _os
-        self.model = model or _os.environ.get("DREAM_MODEL", "gpt-oss:20b")
-        self.host = host.rstrip("/")
-        self.timeout = timeout
-
-    def available(self) -> bool:
-        try:
-            with urllib.request.urlopen(self.host + "/api/tags", timeout=5):
-                return True
-        except Exception:
-            return False
-
-    def list_models(self) -> List[str]:
-        try:
-            with urllib.request.urlopen(self.host + "/api/tags", timeout=10) as r:
-                data = json.loads(r.read())
-            return [m["name"] for m in data.get("models", [])]
-        except Exception:
-            return []
-
-    def chat(self, system: str, prompt: str, temperature: float = 0.2) -> str:
-        body = json.dumps({
-            "model": self.model,
-            "stream": False,
-            "format": "json",
-            "options": {"temperature": temperature},
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-        }).encode()
-        req = urllib.request.Request(
-            self.host + "/api/chat", data=body,
-            headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            resp = json.loads(r.read())
-        return resp.get("message", {}).get("content", "")
+# The client itself lives in .deh (DEHLLM): endpoint discovery ladder plus
+# /v1/chat/completions transport. Re-exported here so existing imports of
+# `dream_memory.dreaming.LocalLLM` keep working.
 
 
 # ---------------------------------------------------------------------------
@@ -100,10 +70,13 @@ Rules:
 - Mark importance 0.0-1.0 (how much a future session loses without it)
   and confidence 0.0-1.0 (how clearly the transcript supports it).
 - Do NOT invent facts not present in the transcripts.
+- Do NOT echo the example structure below verbatim -- write real memories
+  drawn from the transcripts.
 
 Output STRICT JSON only, no prose, matching:
-{"entries": [{"content": "...", "category": "fact|preference|project|lesson|task",
-              "importance": 0.0-1.0, "confidence": 0.0-1.0}]}
+{"entries": [{"content": "The bs2 app is a React 18 + Vite + Tailwind app",
+              "category": "project",
+              "importance": 0.8, "confidence": 0.9}]}
 """
 
 
@@ -160,6 +133,81 @@ def _extract_json(text: str) -> Dict[str, Any]:
     if start != -1 and end > start:
         return json.loads(text[start:end + 1])
     raise ValueError("No JSON found in LLM output")
+
+
+# Placeholder text a small model may echo back instead of writing a real
+# memory. Caught so junk never reaches crystallized memory or the digests.
+_PLACEHOLDERS = {"...", "…", "example", "memory", "content",
+                 "entry", "text", "n/a", "none", "placeholder", "tbd"}
+
+
+def _degenerate(content: str) -> bool:
+    """True for placeholder/junk content that is not a usable memory."""
+    c = content.strip()
+    if len(c) < 12:
+        return True
+    if c.lower().strip(" .!?") in _PLACEHOLDERS:
+        return True
+    # Strip everything that is not a letter/digit: if almost nothing is left
+    # the content was punctuation/ellipses ("...", "----", "!!!").
+    alnum = re.sub(r"[^0-9A-Za-z]+", "", c)
+    if len(alnum) < 6:
+        return True
+    # A single repeated character ("aaaa...") is not a memory either.
+    if len(set(alnum)) <= 2:
+        return True
+    # Every token is 1-2 chars ("a b c d e f g") -- no word carries meaning.
+    words = c.split()
+    if words and max(len(w) for w in words) < 3:
+        return True
+    return False
+
+
+# Retries before the heuristic consolidator takes over. Degenerate replies are
+# stochastic, so a second attempt with a nudge usually succeeds.
+LLM_ATTEMPTS = 3
+
+_RETRY_NUDGE = (
+    "\n\nREMINDER: your previous reply contained PLACEHOLDER text such as "
+    '"..." instead of real memories. That is wrong. Write concrete, '
+    "self-contained memories drawn from the transcripts above, e.g. "
+    '"User prefers pytest over unittest for Python tests". '
+    "Output the STRICT JSON object now."
+)
+
+
+def _parse_entries(data: Dict[str, Any],
+                   batch: List[Session]) -> List[MemoryEntry]:
+    """Convert parsed LLM JSON into MemoryEntry objects, dropping junk.
+
+    Raises nothing: entries that are missing, malformed or degenerate are
+    silently skipped, so an all-placeholder reply yields an empty list and the
+    caller can retry.
+    """
+    out: List[MemoryEntry] = []
+    raw_entries = data.get("entries", [])
+    if not isinstance(raw_entries, list):
+        return out
+    for i, e in enumerate(raw_entries):
+        if not isinstance(e, dict):
+            continue
+        content = str(e.get("content", "")).strip()
+        # Skip placeholder junk the model sometimes echoes back (real bug:
+        # a 38-session dream returned content "...").
+        if not content or _degenerate(content):
+            continue
+        category = str(e.get("category", "fact")).lower()
+        if category not in inbox_mod.CATEGORIES:
+            category = "fact"
+        out.append(MemoryEntry(
+            id=f"mem_{i:04d}",
+            content=content,
+            category=category,
+            importance=_clamp(e.get("importance", 0.5)),
+            confidence=_clamp(e.get("confidence", 0.5)),
+            sources=[s.content_hash for s in batch],
+        ))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -370,37 +418,47 @@ class Dreamer:
                              "previous_dream": last_id})
             return (last, report)
 
-        previous_entries = last.entries if last else []
+        # Memories agents contributed via `dream_remember` join the prior set,
+        # so the normal update rule (keep / revise / drop) carries them into
+        # this artifact as ordinary crystallized entries.
+        pending_inbox = inbox_mod.pending_entries(self.root, self.dreams)
+        previous_entries = list(last.entries if last else [])
+        previous_entries.extend(pending_inbox)
 
         used_llm = False
         entries: List[MemoryEntry] = []
         llm_error = None
+        llm_attempts = 0
 
         if use_llm and batch and self.llm.available():
-            try:
-                prompt = _build_dream_prompt(batch, previous_entries)
-                raw = self.llm.chat(DREAM_SYSTEM, prompt)
-                data = _extract_json(raw)
-                for i, e in enumerate(data.get("entries", [])):
-                    if not isinstance(e, dict):
-                        continue
-                    content = str(e.get("content", "")).strip()
-                    if not content:
-                        continue
-                    category = str(e.get("category", "fact")).lower()
-                    if category not in ("fact", "preference", "project", "lesson", "task"):
-                        category = "fact"
-                    entries.append(MemoryEntry(
-                        id=f"mem_{i:04d}",
-                        content=content,
-                        category=category,
-                        importance=_clamp(e.get("importance", 0.5)),
-                        confidence=_clamp(e.get("confidence", 0.5)),
-                        sources=[s.content_hash for s in batch],
-                    ))
-                used_llm = True
-            except Exception as ex:  # noqa: BLE001 - fall back gracefully
-                llm_error = f"{type(ex).__name__}: {ex}"
+            # The model sometimes answers with a placeholder TEMPLATE instead
+            # of real memories ("content": "..."). It is stochastic -- the
+            # same prompt can return 10 usable entries on the next try -- so
+            # retry with a corrective nudge before falling back to heuristics.
+            for attempt in range(LLM_ATTEMPTS):
+                llm_attempts = attempt + 1
+                try:
+                    prompt = _build_dream_prompt(batch, previous_entries)
+                    if attempt:
+                        prompt += _RETRY_NUDGE
+                    temp = 0.2 if attempt == 0 else 0.6
+                    raw = self.llm.chat(DREAM_SYSTEM, prompt,
+                                        temperature=temp)
+                    data = _extract_json(raw)
+                    entries = _parse_entries(data, batch)
+                    if entries:
+                        used_llm = True
+                        llm_error = None
+                        break
+                    llm_error = (
+                        "degenerate output on attempt "
+                        f"{attempt + 1}/{LLM_ATTEMPTS}")
+                except Exception as ex:  # noqa: BLE001 - fall back gracefully
+                    llm_error = f"{type(ex).__name__}: {ex}"
+                    # A transport failure will not be fixed by retrying the
+                    # same call; only degenerate output is worth another go.
+                    if not isinstance(ex, ValueError):
+                        break
 
         if not used_llm:
             entries = heuristic_consolidate(batch, previous_entries)
@@ -429,12 +487,16 @@ class Dreamer:
                 "used_llm": used_llm,
                 "model": self.llm.model if used_llm else None,
                 "llm_error": llm_error,
+                "llm_attempts": llm_attempts,
                 "new_sessions": len(new_sessions),
                 "batch_sessions": len(batch),
                 "entries_before_prune": len(deduped),
                 "entries_pruned": dropped,
                 "previous_entries": len(previous_entries),
                 "processed_hashes": [s.content_hash for s in batch],
+                # Consumption marker: union of these across ALL dreams decides
+                # which inbox records are still pending (never deleted).
+                "inbox_ids": inbox_mod.take_ids(previous_entries),
             },
         )
 
@@ -451,6 +513,7 @@ class Dreamer:
             "used_llm": used_llm,
             "model": self.llm.model if used_llm else None,
             "llm_error": llm_error,
+            "llm_attempts": llm_attempts,
             "entries_pruned": dropped,
         })
 
@@ -459,6 +522,7 @@ class Dreamer:
             "used_llm": used_llm,
             "model": self.llm.model if used_llm else None,
             "llm_error": llm_error,
+            "llm_attempts": llm_attempts,
             "new_sessions": len(new_sessions),
             "batch_sessions": len(batch),
             "entries": len(pruned),

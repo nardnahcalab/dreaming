@@ -488,6 +488,165 @@ Latest dream remains: dream-0002
 
 ---
 
+## 14. Ollama → Dell Enterprise Hub + agent memory injection
+
+### 14.1 DEH migration
+
+Ollama removed entirely (no fallback). New `dream_memory/deh.py` provides
+`DEHLLM` (kept as `LocalLLM` alias) with `discover_endpoint()` — a 4-rung
+discovery ladder:
+
+1. `DREAM_DEH_ENDPOINT` env override
+2. `dell_ai.deployments.list_deployments()` (SDK, in `.venv`)
+3. `docker ps` container/port scan
+4. verify `/v1/models` **and** a live `_probe_chat()` round-trip
+
+Run 4 exists because of a real trap: `laya-deh` on `127.0.0.1:8080` answers
+`/v1/models` but 404s on `/v1/chat/completions`. Discovery must not accept an
+endpoint that cannot actually chat.
+
+```
+$ .venv/bin/dell-ai models deploy -m meta-models/Muse-Glimmer-30B \
+      -p dell-pro-max-gb10 -e docker -g 1
+$ .venv/bin/python dream.py models
+DEH endpoint:
+  url:    http://localhost:8081
+  source: sdk
+  sdk:    dell-ai installed
+  model:  meta-models/Muse-Glimmer-30B
+```
+
+Weights (~60 GB) downloaded into `brave_lehmann` over ~40 min; SGLang serves
+an OpenAI-compatible wire on `:8081` with 128K context. Transport is stdlib
+HTTP only — the SDK is optional at runtime (system `python3` has no `dell-ai`,
+`.venv/bin/python` does; `run_dream.sh` prefers the venv).
+
+Docs: `deh_migration.html` written first (standing preference), then code.
+Ollama references purged from `README_DREAM_MEMORY.md`, `architecture.md`,
+`architecture.html`, `dream.py`, `run_dream.sh`.
+
+### 14.2 Making crystallized memory usable inside the agents
+
+Two prongs, both now live:
+
+**A. MCP server (`dream_memory/mcp_server.py`)** — stdlib NDJSON JSON-RPC over
+stdio, no `mcp` SDK. Exposes three tools; `initialize.instructions` is
+injected into OpenCode's system prompt as `<mcp_instructions>`:
+
+| Tool | Access | Purpose |
+|---|---|---|
+| `dream_recall` | read | search crystallized (+ optional episodic evidence) |
+| `dream_status` | read | store stats, latest dream, pending inbox |
+| `dream_remember` | **write** | append to inbox → folded into next dream |
+
+stdout is the protocol channel — every log line goes to stderr.
+
+**B. Always-on digest (`dream_memory/context.py`)** — bounded, generated
+summary written into each agent's native memory file via managed blocks:
+
+| Target | File | Budget |
+|---|---|---|
+| Hermes notes | `~/.hermes/memories/MEMORY.md` | 1400 chars |
+| Hermes profile | `~/.hermes/memories/USER.md` | 900 chars |
+| Claude Code | `~/.claude/CLAUDE.md` | 2000 chars |
+| Codex | `~/.codex/AGENTS.md` | 2000 chars |
+| canonical | `<root>/context/digest.md` | both blocks |
+
+Hermes keeps two files with different jobs: **preferences → USER.md**,
+everything else → MEMORY.md. Hermes splits its files on the literal `"\n§\n"`
+and re-joins on every `memory` tool write, so the block is written as exactly
+ONE entry in that format (never containing the delimiter).
+
+Registration — `python3 dream.py connect` wires all four with their own CLIs:
+
+```
+$ python3 dream.py connect
+  server command: /usr/bin/python3 /home/bala/experiments/dreaming/dream.py mcp
+  [OK  ] opencode  MCP server "dream" added to opencode.json
+  [OK  ] claude    Added stdio MCP server dream ... to user config
+  [OK  ] codex     Added global MCP server 'dream'.
+  [OK  ] hermes    registered in ~/.hermes/config.yaml (backup created)
+```
+
+**Verified live**: OpenCode picked up the server in-session — `dream_status`
+and `dream_recall` called through the real MCP connection returned live data
+(53 sessions / 2,391 messages / dream-0002 / 19 entries).
+
+Write-back loop: `dream_remember` → `dream_memory/inbox.py` (append-only
+JSONL, never rewritten) → pending entries join `previous_entries` on the next
+dream → normal keep/revise/drop rule → ordinary crystallized entry with
+provenance. Consumption is tracked by unioning `inbox_ids` across ALL dreams
+(same pattern as `processed_hashes`), so nothing is ever deleted.
+
+New subcommands: `context`, `connect`, `inbox`, `mcp` (14 total).
+
+### 14.3 DEH end-to-end dream test
+
+No new sessions were ingestible, so the pipeline was exercised against a
+**copy** of the store with `dream-0002` removed (38 sessions became "new"):
+
+```
+$ .venv/bin/python dream.py --root /tmp/opencode/dream-deh-test dream
+  DREAM COMPLETE: dream-0002
+  Engine:        LLM (meta-models/Muse-Glimmer-30B)
+  New sessions:  38
+  Duration:      405.3s
+```
+
+**First run**: The model stochastically returned placeholder output
+(`"content": "..."`) instead of real memories. The dream loop caught the
+degenerate entries and fell back to the heuristic consolidator, producing
+19 real entries (444.7s).
+
+**Second run** (same batch, retry logic active): The retry loop tried up to
+3 times with a corrective nudge and temperature bump (0.2 → 0.6). The
+third attempt succeeded with **10/10 usable entries**. This proved the
+retry mechanism works, and the final dream wrote `dream-0003` with 21 entries
+(10 from LLM, 11 from heuristic). Transport, JSON parsing, artifact write
+and rollback safety all confirmed through DEH.
+
+### 14.4 Bugs found and fixed this session
+
+| # | Bug | Fix |
+|---|---|---|
+| 1 | `%-8` missing `s` → `TypeError` printing digest report | `%-8s` |
+| 2 | `canon_text` format: 5 specifiers, 6 args → `TypeError` | matched counts |
+| 3 | Hermes block used a plain newline, not the `§` entry delimiter → Hermes would merge it into its own entry on next write | write as one real `§`-delimited entry |
+| 4 | **Data loss**: managed-block removal dropped `USER.md`'s own content | strip only marker-bounded text, preserve the rest; fail-safe `return text` instead of `""`; rolling `.dream-bak` on every write. Original profile restored byte-exact (717 bytes) |
+| 5 | MCP test wrote digests into **real** agent files (only `DREAM_ROOT` isolated) | isolate `DREAM_DIGEST_HOME` in tests |
+| 6 | `dream.py --root <scratch>` bypassed the env guard → test dream overwrote live `CLAUDE.md`/`AGENTS.md`/`MEMORY.md` (restored from `.dream-bak`) | guard evaluates the actual `root` arg, not just env; `DREAM_DIGEST_FORCE=1` opt-in |
+| 7 | Hermes registration put the interpreter in **both** `command` and `args` → `python3 /usr/bin/python3 ...` | args = `cmd[1:]`; live config repaired + YAML-validated |
+| 8 | LLM echoed the prompt's schema placeholder: `{"content": "..."}` landed in crystallized memory and agent digests | realistic schema example + "do not echo verbatim" + `_degenerate()` filter; **discovered it is stochastic** — the identical prompt returned 10/10 usable entries on a retry, so the loop now tries up to `LLM_ATTEMPTS = 3` with a corrective nudge and `temperature` 0.2 → 0.6 before falling back to heuristics; `stats.llm_attempts` records how many it took |
+| 9 | `_degenerate` let `"a b c d e f g"` through | require at least one word ≥ 3 chars |
+| 10 | `CATEGORIES` referenced in `dreaming.py` but only defined in `inbox.py` → would `NameError` at runtime | use `inbox_mod.CATEGORIES` (single source of truth) |
+| 11 | `connect` reported **FAIL** on re-run — `claude mcp add` errors with "already exists", which is the desired state | `_already()` recognises duplicate/already-registered messages as success; re-run now shows 4/4 OK with zero duplicate entries |
+
+### 14.5 Tests
+
+- `test_memory_context.py` — **14 groups**, all passing: `§`-entry handling,
+  marker replacement, idempotency, category split, budgets, dedup, inbox
+  remember→pending→consumed cycle, `DREAM_DIGEST_HOME` isolation, root guard,
+  degenerate-output rejection, `_parse_entries` filtering.
+- `test_mcp_server.py` — 8-frame protocol test: initialize
+  (version + instructions), ping, `tools/list`, status/recall/remember,
+  pending visibility after write-back, unknown tool → `-32602`, notification
+  not answered, stdout pure JSON. Uses its own `DREAM_ROOT` **and**
+  `DREAM_DIGEST_HOME`, so it can never touch live agent files.
+
+### 14.6 Safety properties now enforced
+
+1. Episodic store append-only; agents can only reach it read-only.
+2. Inbox append-only; consumption is a marker, never a delete.
+3. Digest writes: non-default root → canonical only (unless forced).
+4. Never truncate a file that had content (`skipped_empty` guard).
+5. Every digest write takes a rolling `.dream-bak` first.
+6. Hermes upsert preserves foreign text around our markers.
+7. Degenerate LLM output cannot reach crystallized memory — it is filtered,
+   retried up to 3×, and only then handed to the heuristic consolidator.
+8. `dream.py --root <scratch>` can never write into the live agent files.
+
+---
+
 ## Summary
 
 ### Final state
@@ -501,8 +660,14 @@ Latest dream remains: dream-0002
 | Retention dream-0001→0002 | 100%, zero high-importance loss |
 | Health self-test | `healthy: true` |
 | Store size | ~1.8 MB |
+| LLM engine | DEH `meta-models/Muse-Glimmer-30B` @ `http://localhost:8081` (SGLang) |
+| MCP tools | `dream_recall`, `dream_status`, `dream_remember` |
+| Agents connected | OpenCode, Claude Code, Codex, Hermes (all 4 OK) |
+| Digest targets | `MEMORY.md`, `USER.md`, `CLAUDE.md`, `AGENTS.md` + canonical |
+| CLI subcommands | 14 |
+| Test suites | `test_memory_context.py` (14 groups), `test_mcp_server.py` (8 frames) |
 
-### Bugs found and fixed this session
+### Bugs found and fixed (session 1)
 
 | # | Bug | Fix |
 |---|---|---|
@@ -517,8 +682,22 @@ Latest dream remains: dream-0002
 | 9 | Empty dream written when nothing new | short-circuit + `dream_skipped` log |
 | 10 | Skipped report showed `(none)` for latest | report actual `last_id` |
 
+Session 2 (Ollama → DEH + agent injection) found **9 more** — see §14.4,
+including two data-loss bugs in digest generation and one where the LLM
+echoed a prompt placeholder into memory.
+
 ### Known limitations / next steps
 
-- dream-0002 fell back to heuristics (timeout) — future runs should use the fixed budget; watch the first scheduled cron run.
-- Heuristic fallback found 0 new entries in older sessions — expected, but LLM path is strongly preferred.
-- No git repo yet — contents pushed to `git@github.com:nardnahcalab/dreaming.git` (see git section below).
+- dream-0002 fell back to heuristics (timeout) — the fixed budget was later
+  validated through DEH (§14.3, 38 sessions / 405s).
+- Heuristic fallback found 0 new entries in older sessions — expected, but LLM
+  path is strongly preferred.
+- The current session is not yet ingested, so no dream-0003 exists; the next
+  `run_dream.sh` cycle should produce it through DEH.
+- Codex needs `codex logout && codex login` before it can *connect* (refresh
+  token revoked); `codex mcp add` itself works and the config is written.
+- Muse-Glimmer-30B **stochastically** answers with a placeholder template
+  instead of real memories (the identical prompt returned 10/10 usable entries
+  on retry) — handled by `LLM_ATTEMPTS = 3` with a corrective nudge before the
+  heuristic fallback (§14.4 #8). Watch `llm_attempts` in `dream.py history`.
+- Repo: `git@github.com:nardnahcalab/dreaming.git`, pushed, never force-pushed.

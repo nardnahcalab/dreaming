@@ -278,7 +278,7 @@
     <span class="meta"><b>4</b> agents</span>
     <span class="meta"><b>2</b> dreams</span>
     <span class="meta"><b>100%</b> retention</span>
-    <span class="meta">Ollama <b>gpt-oss:20b</b></span>
+    <span class="meta">DEH <b>Muse-Glimmer-30B</b></span>
     <span class="meta">Python <b>3.12</b></span>
   </div>
 </header>
@@ -348,7 +348,7 @@
         </g>
         <!-- episodic -> dreamer -->
         <path class="route r-info" d="M510,300 C552,300 552,258 590,258" marker-end="url(#ah-info)"/>
-        <!-- dreamer <-> ollama -->
+        <!-- dreamer <-> DEH -->
         <path class="route r-prompt" d="M668,340 C652,378 650,410 656,440" marker-end="url(#ah-prompt)"/>
         <path class="route r-prompt" d="M756,440 C764,410 762,378 748,340" marker-end="url(#ah-prompt)"/>
         <!-- dreamer -> crystallized -->
@@ -414,12 +414,12 @@
           <text class="badge" x="705" y="317" text-anchor="middle" fill="#e2ccff">IMMUTABLE OUTPUT</text>
         </g>
 
-        <!-- ============ OLLAMA ============ -->
+        <!-- ============ DEH ============ -->
         <g class="node">
-          <rect x="615" y="440" width="180" height="95" rx="14" fill="url(#gPanel)" stroke="#c084fc" stroke-opacity=".6"/>
-          <text class="t-title" x="705" y="474" text-anchor="middle" fill="#e2ccff">Ollama</text>
-          <text class="t-sub" x="705" y="494" text-anchor="middle">gpt-oss:20b · localhost</text>
-          <text class="t-mono" x="705" y="516" text-anchor="middle">format:json · t=0.2</text>
+          <rect x="605" y="440" width="200" height="95" rx="14" fill="url(#gPanel)" stroke="#c084fc" stroke-opacity=".6"/>
+          <text class="t-title" x="705" y="474" text-anchor="middle" fill="#e2ccff">Dell Enterprise Hub</text>
+          <text class="t-sub" x="705" y="494" text-anchor="middle">Muse-Glimmer-30B · :8081</text>
+          <text class="t-mono" x="705" y="516" text-anchor="middle">SGLang · t=0.2 · json</text>
           <circle cx="775" cy="462" r="5" fill="#34d399">
             <animate attributeName="opacity" values="1;.25;1" dur="1.8s" repeatCount="indefinite"/>
           </circle>
@@ -587,7 +587,7 @@
         <div class="step" style="--i:2"><span class="n">03</span><span class="txt"><b>Diff → new sessions, take batch</b>last N unseen (default 40)</span></div>
         <div class="step" style="--i:3"><span class="n">04</span><span class="txt"><b>Empty batch?</b>→ log <span class="inline">dream_skipped</span>, return (no empty artifact)</span></div>
         <div class="step" style="--i:4"><span class="n">05</span><span class="txt"><b>Build prompt</b>prior memory + transcripts, budgeted to ~120K chars</span></div>
-        <div class="step" style="--i:5"><span class="n">06</span><span class="txt"><b>Call local Ollama</b>JSON mode, temp 0.2, 900s timeout</span></div>
+        <div class="step" style="--i:5"><span class="n">06</span><span class="txt"><b>Call DEH endpoint</b><span class="inline">/v1/chat/completions</span>, temp 0.2, 900s timeout</span></div>
         <div class="step" style="--i:6"><span class="n">07</span><span class="txt"><b>Any exception?</b>→ record <span class="inline">llm_error</span>, fall back to regex heuristic</span></div>
         <div class="step" style="--i:7"><span class="n">08</span><span class="txt"><b>Validate &amp; clamp</b>categories forced to the fixed 5-way taxonomy</span></div>
         <div class="step" style="--i:8"><span class="n">09</span><span class="txt"><b>Dedup + importance cap</b>“plan to forget” — crystallized only</span></div>
@@ -599,7 +599,7 @@
         <ul>
           <li><b>Union across all dreams</b> — a session in dream-0001 can't be re-dreamed by dream-0003 even if dream-0002 ignored it.</li>
           <li><b>Early exit</b> — nothing new ⇒ nothing written. No vacuous artifacts polluting history.</li>
-          <li><b>Graceful degradation</b> — timeout, bad JSON or no Ollama still yields a completed dream via heuristics.</li>
+          <li><b>Graceful degradation</b> — timeout, bad JSON or no DEH endpoint still yields a completed dream via heuristics.</li>
           <li><b>Prompt budget</b> — adaptive split of 120K chars fixed a real 456K-char timeout (runlog §8).</li>
           <li><b>Forget selectively</b> — importance cap shrinks layer 2; layer 1 is never touched.</li>
           <li><b>Traceable</b> — every entry keeps <span class="inline">sources[]</span> back to raw evidence.</li>
@@ -652,7 +652,7 @@
       <div class="card reveal"><div class="head"><span class="fn">dreaming.py</span><span class="flowtag ft-p">information</span></div>
         <p>The engine — five parts, largest module.</p>
         <ul>
-          <li><b>LocalLLM</b> — stdlib urllib Ollama client, JSON mode, 900s timeout</li>
+          <li><b>DEHLLM</b> — stdlib urllib OpenAI client (<code>deh.py</code>), <code>response_format</code>, 900s timeout</li>
           <li><b>DREAM_SYSTEM</b> — 5 categories, durability + specificity + anti-hallucination rules</li>
           <li><b>_build_dream_prompt()</b> — adaptive 120K char budget across batch</li>
           <li><b>heuristic_consolidate()</b> — regex fallback, carries prior entries forward</li>
@@ -679,11 +679,22 @@
         </ul></div>
 
       <div class="card reveal"><div class="head"><span class="fn">dream.py</span><span class="flowtag ft-x">CLI</span></div>
-        <p>argparse entry point, <span class="inline">--root</span> global flag, 10 subcommands.</p>
+        <p>argparse entry point, <span class="inline">--root</span> global flag, 14 subcommands.</p>
         <ul>
           <li><b>sync</b> · <b>status</b> · <b>dream</b> (--no-llm / --max-sessions / --model)</li>
           <li><b>show</b> · <b>recall</b> · <b>eval</b> · <b>rollback</b></li>
           <li><b>models</b> · <b>history</b></li>
+          <li><b>context</b> · <b>connect</b> · <b>inbox</b> · <b>mcp</b></li>
+        </ul></div>
+
+      <div class="card reveal"><div class="head"><span class="fn">mcp_server.py · context.py · inbox.py · connect.py</span><span class="flowtag ft-p">information</span></div>
+        <p>How crystallized memory reaches OpenCode, Claude Code, Codex &amp; Hermes.</p>
+        <ul>
+          <li><b>dream_recall · dream_status · dream_remember</b> — stdlib MCP over stdio, 0 idle tokens</li>
+          <li><b>Bounded digest</b> — managed block in <span class="inline">CLAUDE.md</span> / <span class="inline">AGENTS.md</span> / Hermes <span class="inline">MEMORY.md</span> + <span class="inline">USER.md</span> (~2 KB)</li>
+          <li><b>inbox.jsonl</b> — write-back, append-only; folded into the next dream</li>
+          <li><b>connect</b> — registers via each vendor's own CLI; Hermes YAML backed up first</li>
+          <li>Root guard + <span class="inline">.dream-bak</span> + <span class="inline">§</span>-entry format: a scratch root can never clobber live agent files</li>
         </ul></div>
 
       <div class="card reveal"><div class="head"><span class="fn">run_dream.sh</span><span class="flowtag ft-x">scheduler</span></div>
@@ -810,7 +821,10 @@
       <table>
         <thead><tr><th>Failure</th><th>Detection</th><th>Mitigation</th></tr></thead>
         <tbody>
-          <tr><td><b>Ollama down / unreachable</b></td><td><code>available()</code> 5s probe</td><td>heuristic consolidator runs; pipeline continues</td></tr>
+          <tr><td><b>No DEH endpoint</b></td><td><code>available()</code> 5s probe</td><td>heuristic consolidator runs; pipeline continues</td></tr>
+          <tr><td><b>SDK not installed</b></td><td><code>ImportError</code> on <code>dell_ai</code></td><td>discovery degrades to a <code>docker ps</code> scan</td></tr>
+          <tr><td><b>Loopback-bound container</b></td><td>SDK reports endpoint <code>null</code></td><td>own port parser accepts <code>127.0.0.1</code> and <code>[::]</code> binds</td></tr>
+          <tr><td><b>App container ≠ model</b></td><td>chat route returns 404</td><td><code>_probe_chat()</code> rejects candidates with no chat route</td></tr>
           <tr><td><b>LLM timeout</b> (large batch)</td><td><code>TimeoutError</code> in <code>chat()</code></td><td>caught → <code>stats.llm_error</code> → heuristic; 900s timeout + 120K budget make it rare</td></tr>
           <tr><td><b>Malformed LLM JSON</b></td><td><code>_extract_json()</code> raises</td><td>fence-stripping + brace-slicing, then heuristic fallback</td></tr>
           <tr><td><b>Corrupt source line</b></td><td><code>JSONDecodeError</code></td><td>line skipped, rest of session continues</td></tr>
@@ -837,7 +851,10 @@
         <thead><tr><th>Env var</th><th>Default</th><th>Purpose</th></tr></thead>
         <tbody>
           <tr><td><code>DREAM_ROOT</code></td><td><code>~/.dream-memory</code></td><td>storage root for both layers</td></tr>
-          <tr><td><code>DREAM_MODEL</code></td><td><code>gpt-oss:20b</code></td><td>Ollama model used for dreaming</td></tr>
+          <tr><td><code>DREAM_MODEL</code></td><td><code>meta-models/Muse-Glimmer-30B</code></td><td>DEH model id used for dreaming</td></tr>
+          <tr><td><code>DREAM_DEH_ENDPOINT</code></td><td><em>auto-discovered</em></td><td>explicit endpoint; skips the discovery ladder</td></tr>
+          <tr><td><code>DREAM_DEH_SLUG</code></td><td><code>muse-glimmer</code></td><td>image-slug filter used to rank registry entries</td></tr>
+          <tr><td><code>DREAM_TIMEOUT</code></td><td><code>900</code></td><td>seconds before a chat call is abandoned</td></tr>
           <tr><td><code>DREAM_MAX_SESSIONS</code></td><td><code>20</code></td><td>batch cap for <code>run_dream.sh</code></td></tr>
         </tbody>
       </table>

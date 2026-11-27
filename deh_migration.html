@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>deh_migration.html — Ollama → Dell Enterprise Hub</title>
+<style>
+  :root{
+    --bg:#070b18; --bg2:#0a1024; --panel:#0e1530; --panel2:#121b3d;
+    --line:#243056; --line2:#31406e;
+    --txt:#dbe4ff; --dim:#8ea0c9; --dim2:#66769d;
+    --info:#38bdf8; --info-dim:rgba(56,189,248,.16);
+    --prompt:#c084fc; --prompt-dim:rgba(192,132,252,.16);
+    --intel:#fbbf24; --intel-dim:rgba(251,191,36,.16);
+    --ok:#34d399; --warn:#fb7185;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--txt); font-family:var(--sans);
+    line-height:1.65; overflow-x:hidden;
+    background-image:
+      radial-gradient(900px 500px at 12% -8%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(900px 550px at 88% 4%, rgba(192,132,252,.10), transparent 60%),
+      radial-gradient(1100px 600px at 50% 108%, rgba(251,191,36,.07), transparent 60%),
+      linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    background-attachment:fixed;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.35;
+    background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);
+    background-size:56px 56px;
+    mask-image:radial-gradient(circle at 50% 30%,#000 30%,transparent 85%);
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:100;
+    background:linear-gradient(90deg,var(--info),var(--prompt),var(--intel));
+    box-shadow:0 0 12px rgba(192,132,252,.7);transition:width .1s linear}
+
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
+    background:rgba(7,11,24,.78);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;gap:16px;height:58px;flex-wrap:wrap}
+  nav .brand{font-weight:800;letter-spacing:.4px;font-size:15px;
+    background:linear-gradient(90deg,var(--info),var(--prompt),var(--intel));
+    -webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
+  nav a{color:var(--dim);text-decoration:none;font-size:12.5px;padding:5px 10px;border-radius:8px;
+    transition:.2s;white-space:nowrap}
+  nav a:hover{color:var(--txt);background:rgba(255,255,255,.06)}
+
+  header.hero{padding:70px 0 34px;text-align:center}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:1.6px;
+    text-transform:uppercase;color:var(--dim);border:1px solid var(--line2);
+    padding:7px 16px;border-radius:99px;background:rgba(255,255,255,.03);margin-bottom:22px}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);
+    box-shadow:0 0 10px var(--ok);animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.75)}}
+  h1{font-size:clamp(30px,5vw,54px);line-height:1.12;letter-spacing:-1.4px;font-weight:850}
+  h1 .g{background:linear-gradient(90deg,var(--info),var(--prompt) 55%,var(--intel));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{max-width:800px;margin:18px auto 0;color:var(--dim);font-size:16.5px}
+
+  .stats{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px 20px;min-width:150px;transition:.25s}
+  .stat:hover{border-color:var(--line2);transform:translateY(-3px)}
+  .stat .n{font-size:23px;font-weight:800;font-family:var(--mono)}
+  .stat .l{font-size:11.5px;color:var(--dim2);text-transform:uppercase;letter-spacing:.9px;margin-top:3px}
+
+  section{padding:56px 0;scroll-margin-top:70px}
+  h2{font-size:clamp(23px,3vw,32px);letter-spacing:-.7px;font-weight:800;margin-bottom:8px}
+  h2 .num{font-family:var(--mono);color:var(--prompt);font-size:.6em;
+    vertical-align:middle;margin-right:10px;opacity:.8}
+  .lead{color:var(--dim);max-width:850px;margin-bottom:30px;font-size:15.5px}
+
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(255px,1fr))}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:22px;position:relative;overflow:hidden;transition:.3s}
+  .card::after{content:"";position:absolute;inset:0;opacity:0;transition:.35s;pointer-events:none;
+    background:radial-gradient(500px 200px at var(--mx,50%) var(--my,0%),rgba(192,132,252,.10),transparent 70%)}
+  .card:hover{border-color:var(--line2);transform:translateY(-4px)}
+  .card:hover::after{opacity:1}
+  .card h3{font-size:16px;font-weight:750;margin-bottom:9px;display:flex;align-items:center;gap:9px}
+  .card p{color:var(--dim);font-size:14.2px}
+  .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    font-size:15px;flex:none}
+  .ico.b{background:var(--info-dim);color:var(--info)}
+  .ico.p{background:var(--prompt-dim);color:var(--prompt)}
+  .ico.i{background:var(--intel-dim);color:var(--intel)}
+  .ico.o{background:rgba(52,211,153,.16);color:var(--ok)}
+
+  .tag{display:inline-block;font-size:10.5px;font-family:var(--mono);letter-spacing:.6px;
+    text-transform:uppercase;padding:3px 9px;border-radius:6px;margin-bottom:12px}
+  .tag.b{background:var(--info-dim);color:var(--info)}
+  .tag.p{background:var(--prompt-dim);color:var(--prompt)}
+  .tag.i{background:var(--intel-dim);color:var(--intel)}
+  .tag.o{background:rgba(52,211,153,.16);color:var(--ok)}
+  .tag.w{background:rgba(251,113,133,.16);color:var(--warn)}
+
+  /* ---------- flow diagram ---------- */
+  .flowbox{background:var(--panel);border:1px solid var(--line);border-radius:18px;
+    padding:24px 18px;overflow-x:auto}
+  svg{display:block;min-width:960px;width:100%;height:auto}
+  .nd{fill:var(--panel2);stroke:var(--line2);stroke-width:1.4}
+  .nd.hi{stroke:var(--info)}
+  .nd.gold{stroke:var(--intel)}
+  .nd.pur{stroke:var(--prompt)}
+  .t-title{font:700 14.5px var(--sans);fill:var(--txt)}
+  .t-sub{font:500 11.5px var(--mono);fill:var(--dim2)}
+  .t-lab{font:600 11px var(--mono);fill:var(--dim)}
+  .flow{fill:none;stroke-width:2;stroke-linecap:round;
+    stroke-dasharray:9 7;animation:dash 1.1s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-32}}
+  .f-b{stroke:var(--info)} .f-p{stroke:var(--prompt)} .f-i{stroke:var(--intel)}
+  .arw{fill:none;stroke-width:1.6;opacity:.42}
+  .legend{display:flex;gap:22px;flex-wrap:wrap;margin-top:18px;
+    padding-top:16px;border-top:1px solid var(--line)}
+  .legend div{display:flex;align-items:center;gap:9px;font-size:12.8px;color:var(--dim)}
+  .swatch{width:24px;height:3px;border-radius:2px;flex:none}
+
+  /* ---------- code ---------- */
+  .codegrid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(400px,1fr))}
+  .code{background:#060a16;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .code .hd{display:flex;align-items:center;gap:9px;padding:11px 16px;
+    border-bottom:1px solid var(--line);background:rgba(255,255,255,.025);font-size:12.5px;
+    font-family:var(--mono);color:var(--dim)}
+  .code .hd .d{width:9px;height:9px;border-radius:50%}
+  .code pre{padding:16px;overflow-x:auto;font-family:var(--mono);font-size:12.6px;line-height:1.62}
+  .k{color:#c084fc} .s{color:#7dd3fc} .c{color:#5b6b93;font-style:italic}
+  .f{color:#fbbf24} .n{color:#34d399} .e{color:#fb7185}
+  .code.bad .hd{color:var(--warn)} .code.good .hd{color:var(--ok)}
+
+  /* ---------- table ---------- */
+  .tbl{width:100%;border-collapse:collapse;font-size:14px;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .tbl th{text-align:left;padding:13px 16px;font-size:11.5px;letter-spacing:1px;
+    text-transform:uppercase;color:var(--dim2);background:rgba(255,255,255,.03);
+    border-bottom:1px solid var(--line)}
+  .tbl td{padding:13px 16px;border-bottom:1px solid var(--line);color:var(--dim);
+    vertical-align:top}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl tr:hover td{background:rgba(255,255,255,.022)}
+  .tbl td:first-child{color:var(--txt);font-weight:600}
+  code{font-family:var(--mono);font-size:.9em;background:rgba(192,132,252,.13);
+    color:#e6d5ff;padding:2px 6px;border-radius:5px;white-space:nowrap}
+  td code{white-space:normal}
+
+  .term{background:#060a16;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:16px}
+  .term .hd{padding:10px 16px;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.025);font-family:var(--mono);font-size:12.3px;color:var(--dim)}
+  .term pre{padding:16px;overflow-x:auto;font-family:var(--mono);font-size:12.6px;line-height:1.7}
+  .prompt{color:var(--ok)} .out{color:var(--dim2)} .cmd{color:var(--txt)}
+
+  .note{border-left:3px solid var(--prompt);background:var(--prompt-dim);
+    padding:15px 19px;border-radius:0 12px 12px 0;font-size:14.3px;color:var(--dim);margin-top:20px}
+  .note b{color:var(--txt)}
+  .note.warn{border-color:var(--warn);background:rgba(251,113,133,.11)}
+  .note.ok{border-color:var(--ok);background:rgba(52,211,153,.10)}
+
+  .ladder{counter-reset:step;display:grid;gap:12px}
+  .rung{display:flex;gap:16px;align-items:flex-start;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:16px 18px;transition:.25s}
+  .rung:hover{border-color:var(--line2);transform:translateX(5px)}
+  .rung::before{counter-increment:step;content:counter(step);
+    font-family:var(--mono);font-weight:800;font-size:13px;color:var(--prompt);
+    background:var(--prompt-dim);border-radius:9px;width:30px;height:30px;
+    display:grid;place-items:center;flex:none}
+  .rung h4{font-size:14.6px;font-weight:700;margin-bottom:3px}
+  .rung p{font-size:13.6px;color:var(--dim)}
+
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.3,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  footer{border-top:1px solid var(--line);padding:34px 0 46px;margin-top:40px;color:var(--dim2);font-size:13px}
+  footer .wrap{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<nav><div class="wrap">
+  <span class="brand">DEH MIGRATION</span>
+  <a href="#why">Why</a>
+  <a href="#flow">Flow</a>
+  <a href="#swap">API swap</a>
+  <a href="#client">Client</a>
+  <a href="#runbook">Runbook</a>
+  <a href="#config">Config</a>
+  <a href="#fail">Failure modes</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <span class="pill"><span class="dot"></span>Ollama → Dell Enterprise Hub</span>
+  <h1>Swap the dream engine<br>to <span class="g">Dell Enterprise Hub</span></h1>
+  <p class="sub">The dreaming pipeline stops talking to <code>localhost:11434</code> and starts
+  talking to a validated, Docker-deployed SGLang endpoint managed by the <code>dell-ai</code>
+  SDK and CLI. Same prompts, same JSON contract, same heuristic fallback — new engine.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="n" style="color:var(--info)">GB10</div><div class="l">Platform</div></div>
+    <div class="stat"><div class="n" style="color:var(--prompt)">30B</div><div class="l">Muse Glimmer</div></div>
+    <div class="stat"><div class="n" style="color:var(--intel)">SGLang</div><div class="l">Serving engine</div></div>
+    <div class="stat"><div class="n" style="color:var(--ok)">1.1.0</div><div class="l">dell-ai SDK</div></div>
+    <div class="stat"><div class="n" style="color:var(--warn)">0</div><div class="l">Ollama calls left</div></div>
+  </div>
+</div></header>
+
+<div class="wrap">
+
+<!-- ================= WHY ================= -->
+<section id="why" class="reveal">
+  <h2><span class="num">01</span>Why migrate</h2>
+  <p class="lead">Ollama was a fine stand-in while the pipeline was being proven. DEH is the
+  production path on this box: hardware-validated configurations, a Docker flow the platform
+  already manages, and an official SDK/CLI instead of an undocumented local daemon.</p>
+
+  <div class="grid g3">
+    <div class="card"><span class="tag o">Hardware validated</span>
+      <h3><span class="ico o">✓</span>GB10-native configs</h3>
+      <p><code>meta-models/Muse-Glimmer-30B</code> is published against
+      <code>dell-pro-max-gb10</code> — the exact platform of this machine. Container tags,
+      GPU count and token limits are tested by Dell, not guessed.</p></div>
+
+    <div class="card"><span class="tag b">Docker flow</span>
+      <h3><span class="ico b">▤</span>Image already local</h3>
+      <p><code>enterprise-dell-inference-meta-models-muse-glimmer-30b-gb10:latest</code>
+      (28.7 GB) is already pulled. Weights are fetched from the Hub at first boot via
+      <code>HF_TOKEN</code>, so cold start is a download, not an image pull.</p></div>
+
+    <div class="card"><span class="tag p">SDK + CLI</span>
+      <h3><span class="ico p">⚙</span>One client, two surfaces</h3>
+      <p>The Python SDK (<code>dell_ai</code>) discovers the live endpoint from inside
+      <code>dream_memory</code>; the <code>dell-ai</code> CLI runs deploy / status / undeploy
+      from the shell. Same underlying client, no drift.</p></div>
+
+    <div class="card"><span class="tag i">OpenAI wire</span>
+      <h3><span class="ico i">⇄</span>Standard protocol</h3>
+      <p>SGLang speaks the OpenAI contract — <code>/v1/chat/completions</code>,
+      <code>/v1/models</code>, <code>/health</code>. The client becomes portable: any
+      OpenAI-compatible server can serve dreams later.</p></div>
+
+    <div class="card"><span class="tag w">Removed</span>
+      <h3><span class="ico" style="background:rgba(251,113,133,.16);color:var(--warn)">✕</span>Ollama is gone</h3>
+      <p>The <code>LocalLLM</code> class, <code>/api/tags</code>,
+      <code>/api/chat</code>, <code>format:"json"</code> and the
+      <code>localhost:11434</code> default are deleted outright — not kept as a fallback.</p></div>
+
+    <div class="card"><span class="tag o">Unchanged</span>
+      <h3><span class="ico o">⛨</span>Safety net survives</h3>
+      <p>The deterministic heuristic consolidator remains the last rung. If DEH is unreachable
+      the pipeline still completes a dream instead of failing — same behaviour as before.</p></div>
+  </div>
+</section>
+
+<!-- ================= FLOW ================= -->
+<section id="flow" class="reveal">
+  <h2><span class="num">02</span>Request flow after the swap</h2>
+  <p class="lead">Requests travel along the top lane, responses return along the bottom lane.
+  Discovery and operations enter from above and below. Watch the dashes — they trace the exact
+  order the code executes.</p>
+
+  <div class="flowbox">
+  <svg viewBox="0 0 1200 450" role="img" aria-label="DEH request flow">
+    <defs>
+      <marker id="a-b" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+        <path d="M0,0 L9,4.5 L0,9 z" fill="#38bdf8"/></marker>
+      <marker id="a-p" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+        <path d="M0,0 L9,4.5 L0,9 z" fill="#c084fc"/></marker>
+      <marker id="a-i" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+        <path d="M0,0 L9,4.5 L0,9 z" fill="#fbbf24"/></marker>
+    </defs>
+
+    <!-- lanes -->
+    <line x1="40" y1="118" x2="1160" y2="118" stroke="#243056" stroke-width="1" stroke-dasharray="3 6"/>
+    <line x1="40" y1="330" x2="1160" y2="330" stroke="#243056" stroke-width="1" stroke-dasharray="3 6"/>
+    <text class="t-sub" x="46" y="110">REQUEST LANE</text>
+    <text class="t-sub" x="46" y="348">RESPONSE LANE</text>
+
+    <!-- top: HF hub -->
+    <rect class="nd pur" x="640" y="16" width="270" height="74" rx="12"/>
+    <text class="t-title" x="775" y="45" text-anchor="middle">Hugging Face Hub</text>
+    <text class="t-sub" x="775" y="66" text-anchor="middle">weights via HF_TOKEN</text>
+
+    <!-- main nodes -->
+    <rect class="nd hi" x="40" y="140" width="220" height="112" rx="14"/>
+    <text class="t-title" x="150" y="176" text-anchor="middle">Dreamer</text>
+    <text class="t-sub" x="150" y="197" text-anchor="middle">dream_memory/</text>
+    <text class="t-sub" x="150" y="215" text-anchor="middle">heuristic_consolidate()</text>
+
+    <rect class="nd hi" x="340" y="140" width="230" height="112" rx="14"/>
+    <text class="t-title" x="455" y="176" text-anchor="middle">DEH Client</text>
+    <text class="t-sub" x="455" y="197" text-anchor="middle">DEHLLM · stdlib urllib</text>
+    <text class="t-sub" x="455" y="215" text-anchor="middle">/v1/chat/completions</text>
+
+    <rect class="nd hi" x="650" y="140" width="270" height="112" rx="14"/>
+    <text class="t-title" x="785" y="176" text-anchor="middle">SGLang container</text>
+    <text class="t-sub" x="785" y="197" text-anchor="middle">Muse-Glimmer-30B</text>
+    <text class="t-sub" x="785" y="215" text-anchor="middle">dell-pro-max-gb10</text>
+
+    <rect class="nd gold" x="970" y="140" width="190" height="112" rx="14"/>
+    <text class="t-title" x="1065" y="176" text-anchor="middle">Crystallized</text>
+    <text class="t-sub" x="1065" y="197" text-anchor="middle">dream-NNNN.json</text>
+    <text class="t-sub" x="1065" y="215" text-anchor="middle">append-only</text>
+
+    <!-- bottom: CLI -->
+    <rect class="nd pur" x="650" y="356" width="270" height="74" rx="12"/>
+    <text class="t-title" x="785" y="385" text-anchor="middle">dell-ai CLI</text>
+    <text class="t-sub" x="785" y="406" text-anchor="middle">deploy · status · undeploy</text>
+
+    <!-- request lane: dreamer -> client -> sglang -->
+    <path class="arw" d="M260,170 H334" stroke="#38bdf8" marker-end="url(#a-b)"/>
+    <path class="flow f-b" d="M260,170 H334"/>
+    <text class="t-lab" x="297" y="160" text-anchor="middle">chat()</text>
+
+    <path class="arw" d="M570,170 H644" stroke="#38bdf8" marker-end="url(#a-b)"/>
+    <path class="flow f-b" d="M570,170 H644"/>
+    <text class="t-lab" x="607" y="160" text-anchor="middle">POST</text>
+
+    <!-- response lane: sglang -> client -> dreamer -->
+    <path class="arw" d="M650,222 H576" stroke="#38bdf8" marker-end="url(#a-b)"/>
+    <path class="flow f-b" d="M650,222 H576"/>
+    <text class="t-lab" x="613" y="243" text-anchor="middle">choices[0]</text>
+
+    <path class="arw" d="M340,222 H266" stroke="#38bdf8" marker-end="url(#a-b)"/>
+    <path class="flow f-b" d="M340,222 H266"/>
+    <text class="t-lab" x="303" y="243" text-anchor="middle">entries[]</text>
+
+    <!-- HF -> sglang (weights) -->
+    <path class="arw" d="M775,90 V134" stroke="#c084fc" marker-end="url(#a-p)"/>
+    <path class="flow f-p" d="M775,90 V134"/>
+    <text class="t-lab" x="792" y="117">weights</text>
+
+    <!-- CLI -> sglang (deploy) -->
+    <path class="arw" d="M785,356 V258" stroke="#c084fc" marker-end="url(#a-p)"/>
+    <path class="flow f-p" d="M785,356 V258"/>
+    <text class="t-lab" x="802" y="312">docker run</text>
+
+    <!-- dreamer -> crystallized (gold) -->
+    <path class="arw" d="M150,252 V356" stroke="#fbbf24" marker-end="url(#a-i)"/>
+    <path class="flow f-i" d="M150,252 V356" style="animation-duration:1.6s"/>
+    <text class="t-lab" x="167" y="312">write</text>
+
+    <!-- sglang -> crystallized -->
+    <path class="arw" d="M920,196 H964" stroke="#fbbf24" marker-end="url(#a-i)"/>
+    <path class="flow f-i" d="M920,196 H964"/>
+  </svg>
+
+  <div class="legend">
+    <div><span class="swatch" style="background:var(--info)"></span>prompt / response — OpenAI wire calls</div>
+    <div><span class="swatch" style="background:var(--prompt)"></span>information — weights &amp; deployment config</div>
+    <div><span class="swatch" style="background:var(--intel)"></span>intelligence — crystallized memory entries</div>
+  </div>
+  </div>
+
+  <div class="note"><b>Discovery is a separate concern.</b> Before any arrow fires, the client
+  resolves <i>where</i> the endpoint is: <code>DREAM_DEH_ENDPOINT</code> →
+  <code>dell_ai.deployments.list_deployments()</code> → a direct <code>docker ps</code> scan.
+  Only if all three miss does the heuristic run.</div>
+</section>
+
+<!-- ================= API SWAP ================= -->
+<section id="swap" class="reveal">
+  <h2><span class="num">03</span>The API swap</h2>
+  <p class="lead">Same two operations — list models, run a chat — mapped from Ollama's private
+  dialect to the OpenAI standard that SGLang serves.</p>
+
+  <table class="tbl">
+    <thead><tr><th>Operation</th><th>Ollama (removed)</th><th>DEH / SGLang (new)</th></tr></thead>
+    <tbody>
+      <tr><td>Base URL</td><td><code>http://localhost:11434</code></td>
+          <td><code>http://localhost:&lt;port&gt;</code> from deployment registry</td></tr>
+      <tr><td>List models</td><td><code>GET /api/tags</code> → <code>models[].name</code></td>
+          <td><code>GET /v1/models</code> → <code>data[].id</code></td></tr>
+      <tr><td>Health probe</td><td><code>GET /api/tags</code> (5 s)</td>
+          <td><code>GET /health</code> → <code>{"status":"ok"}</code></td></tr>
+      <tr><td>Chat</td><td><code>POST /api/chat</code></td>
+          <td><code>POST /v1/chat/completions</code></td></tr>
+      <tr><td>JSON mode</td><td><code>"format": "json"</code></td>
+          <td><code>"response_format": {"type":"json_object"}</code> (retried without on 4xx)</td></tr>
+      <tr><td>Temperature</td><td><code>options.temperature</code></td>
+          <td><code>temperature</code> (top level)</td></tr>
+      <tr><td>Response body</td><td><code>message.content</code></td>
+          <td><code>choices[0].message.content</code></td></tr>
+      <tr><td>Model name</td><td><code>gpt-oss:20b</code> (Ollama tag)</td>
+          <td><code>meta-models/Muse-Glimmer-30B</code>, or whatever <code>/v1/models</code> reports</td></tr>
+    </tbody>
+  </table>
+
+  <div class="codegrid" style="margin-top:22px">
+    <div class="code bad">
+      <div class="hd"><span class="d" style="background:var(--warn)"></span>dream_memory/dreaming.py — before</div>
+<pre><span class="k">class</span> <span class="n">LocalLLM</span>:
+    <span class="k">def</span> <span class="f">available</span>(<span class="k">self</span>):
+        urlopen(<span class="s">"/api/tags"</span>, timeout=<span class="n">5</span>)
+
+    <span class="k">def</span> <span class="f">chat</span>(<span class="k">self</span>, system, prompt, temperature=<span class="n">0.2</span>):
+        body = {
+            <span class="s">"model"</span>: <span class="k">self</span>.model,          <span class="c"># gpt-oss:20b</span>
+            <span class="s">"format"</span>: <span class="s">"json"</span>,             <span class="c"># ollama dialect</span>
+            <span class="s">"options"</span>: {<span class="s">"temperature"</span>: temperature},
+            <span class="s">"messages"</span>: [...],
+        }
+        POST(<span class="s">"/api/chat"</span>)
+        <span class="k">return</span> resp[<span class="s">"message"</span>][<span class="s">"content"</span>]</pre>
+    </div>
+
+    <div class="code good">
+      <div class="hd"><span class="d" style="background:var(--ok)"></span>dream_memory/deh.py — after</div>
+<pre><span class="k">class</span> <span class="n">DEHLLM</span>:
+    <span class="k">def</span> <span class="f">available</span>(<span class="k">self</span>):
+        GET(<span class="s">"/health"</span>) <span class="k">or</span> GET(<span class="s">"/v1/models"</span>)
+
+    <span class="k">def</span> <span class="f">chat</span>(<span class="k">self</span>, system, prompt, temperature=<span class="n">0.2</span>):
+        body = {
+            <span class="s">"model"</span>: <span class="k">self</span>.model,          <span class="c"># from /v1/models</span>
+            <span class="s">"response_format"</span>: {<span class="s">"type"</span>: <span class="s">"json_object"</span>},
+            <span class="s">"temperature"</span>: temperature,
+            <span class="s">"messages"</span>: [...],
+        }
+        POST(<span class="s">"/v1/chat/completions"</span>)
+        <span class="k">return</span> resp[<span class="s">"choices"</span>][<span class="n">0</span>][<span class="s">"message"</span>][<span class="s">"content"</span>]</pre>
+    </div>
+  </div>
+
+  <div class="note ok"><b>Prompt text is untouched.</b> <code>DREAM_SYSTEM</code>, the update
+  rule, the 120 K adaptive budget and <code>_extract_json()</code> all carry over unchanged —
+  only the transport and the envelope change. Dream artifacts stay byte-compatible, so
+  <code>eval</code> still compares dream-0002 against the new dream correctly.</div>
+</section>
+
+<!-- ================= CLIENT ================= -->
+<section id="client" class="reveal">
+  <h2><span class="num">04</span>Endpoint discovery ladder</h2>
+  <p class="lead">The single riskiest part of the swap is finding the port. DEH's own registry
+  helper parses <code>0.0.0.0:PORT-&gt;</code>, but this box's live container binds
+  <code>127.0.0.1:8080</code> — so the helper returns <code>None</code>. The client therefore
+  walks four rungs and verifies each candidate before trusting it.</p>
+
+  <div class="ladder">
+    <div class="rung"><div>
+      <h4>Explicit override — <code>DREAM_DEH_ENDPOINT</code></h4>
+      <p>Wins unconditionally. Used for tests, remote endpoints and pinning one deployment
+      when several are running.</p></div></div>
+
+    <div class="rung"><div>
+      <h4><code>dell_ai.deployments.list_deployments()</code></h4>
+      <p>Merges the JSON registry with live Docker discovery. Prefer the entry whose image slug
+      matches the configured model (<code>muse-glimmer</code>), because app containers such as
+      <code>laya-deh</code> also match the DEH image prefix but expose no chat routes.</p></div></div>
+
+    <div class="rung"><div>
+      <h4>Direct <code>docker ps</code> scan</h4>
+      <p>Fallback when the SDK is not importable. Port regex accepts
+      <code>127.0.0.1</code>, <code>0.0.0.0</code> and <code>[::]</code> — the case DEH's own
+      parser misses on this machine.</p></div></div>
+
+    <div class="rung"><div>
+      <h4>Verify with <code>GET /v1/models</code></h4>
+      <p>Every candidate is probed before use. A 404 or empty <code>data[]</code> rejects it,
+      so an app container can never be mistaken for an inference endpoint.</p></div></div>
+  </div>
+
+  <div class="note warn"><b>App ≠ model.</b> The running <code>laya-deh</code> container
+  answers <code>GET /v1/models</code> but returns <b>404</b> on
+  <code>POST /v1/chat/completions</code>. Discovery must filter on the configured model slug
+  <i>and</i> verify chat capability, or the dreamer will bind to a dead endpoint.</div>
+</section>
+
+<!-- ================= RUNBOOK ================= -->
+<section id="runbook" class="reveal">
+  <h2><span class="num">05</span>Ops runbook — CLI</h2>
+  <p class="lead">Deployment is an operations concern, not a pipeline concern. The CLI owns the
+  lifecycle; the SDK only reads the resulting endpoint.</p>
+
+  <div class="term">
+    <div class="hd"># 1 — install once (project venv; system pip is externally managed)</div>
+<pre><span class="prompt">$</span> <span class="cmd">uv venv .venv</span>
+<span class="prompt">$</span> <span class="cmd">uv pip install --python .venv/bin/python dell-ai</span>
+<span class="out">+ dell-ai==1.1.0</span></pre>
+  </div>
+
+  <div class="term">
+    <div class="hd"># 2 — authenticate with your Hugging Face token</div>
+<pre><span class="prompt">$</span> <span class="cmd">.venv/bin/dell-ai login --token "$HF_TOKEN"</span>
+<span class="prompt">$</span> <span class="cmd">.venv/bin/dell-ai whoami</span>
+<span class="out">Status: Logged in
+User: balaatdell</span></pre>
+  </div>
+
+  <div class="term">
+    <div class="hd"># 3 — deploy the dream model on this platform</div>
+<pre><span class="prompt">$</span> <span class="cmd">.venv/bin/dell-ai models deploy \</span>
+    <span class="cmd">--model-id meta-models/Muse-Glimmer-30B \</span>
+    <span class="cmd">--platform-id dell-pro-max-gb10 \</span>
+    <span class="cmd">--engine docker \</span>
+    <span class="cmd">--gpus 1</span>
+<span class="out">→ fetches validated config, runs container, records endpoint</span></pre>
+  </div>
+
+  <div class="term">
+    <div class="hd"># 4 — verify the endpoint before dreaming</div>
+<pre><span class="prompt">$</span> <span class="cmd">.venv/bin/dell-ai status</span>
+<span class="prompt">$</span> <span class="cmd">curl -s http://localhost:&lt;port&gt;/v1/models</span>
+<span class="out">{"data":[{"id":"meta-models/Muse-Glimmer-30B", ...}]}</span>
+<span class="prompt">$</span> <span class="cmd">.venv/bin/python dream.py dream</span></pre>
+  </div>
+
+  <div class="term">
+    <div class="hd"># 5 — tear down when done</div>
+<pre><span class="prompt">$</span> <span class="cmd">.venv/bin/dell-ai models undeploy -d &lt;deployment-id&gt;</span>
+<span class="out">deployment id comes from `dell-ai status`</span></pre>
+  </div>
+
+  <div class="note"><b>Cold start cost.</b> The image is local (28.7 GB) but
+  <code>contains_weights: false</code> — first boot pulls weights from the Hub. Expect minutes
+  on the initial run and seconds thereafter. <code>/health</code> flipping to
+  <code>{"status":"ok"}</code> is the readiness signal the client waits on.</div>
+</section>
+
+<!-- ================= CONFIG ================= -->
+<section id="config" class="reveal">
+  <h2><span class="num">06</span>Configuration</h2>
+  <p class="lead">Environment variables replace the Ollama-era settings. Everything else keeps
+  its existing name.</p>
+
+  <table class="tbl">
+    <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>DREAM_DEH_ENDPOINT</code></td><td><code>(auto-discovered)</code></td>
+          <td>Explicit endpoint override; skips the discovery ladder entirely</td></tr>
+      <tr><td><code>DREAM_MODEL</code></td><td><code>meta-models/Muse-Glimmer-30B</code></td>
+          <td>Model id sent in the chat body; falls back to whatever <code>/v1/models</code> reports</td></tr>
+      <tr><td><code>DREAM_DEH_SLUG</code></td><td><code>muse-glimmer</code></td>
+          <td>Image-slug filter used to pick the right registry entry</td></tr>
+      <tr><td><code>DREAM_TIMEOUT</code></td><td><code>900</code></td>
+          <td>Seconds before a chat call is abandoned (unchanged from Ollama era)</td></tr>
+      <tr><td><code>HF_TOKEN</code></td><td><code>—</code></td>
+          <td>Downloads model weights at first container boot; also gates <code>dell-ai login</code></td></tr>
+      <tr><td><code>DREAM_ROOT</code></td><td><code>~/.dream-memory</code></td>
+          <td>Storage location — unaffected by this migration</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><b>Removed:</b> the <code>localhost:11434</code> host default and the
+  <code>gpt-oss:20b</code> model default. Any doc or script still referencing Ollama ports or
+  tags is stale by definition.</div>
+</section>
+
+<!-- ================= FAILURES ================= -->
+<section id="fail" class="reveal">
+  <h2><span class="num">07</span>Failure modes</h2>
+  <p class="lead">Every degradation path ends in a completed dream, never a crash. That
+  contract predates the migration and is preserved exactly.</p>
+
+  <table class="tbl">
+    <thead><tr><th>Condition</th><th>Detection</th><th>Behaviour</th></tr></thead>
+    <tbody>
+      <tr><td><code>dell-ai</code> not installed</td><td><code>ImportError</code> on SDK</td>
+          <td>Skip rung 2, fall through to <code>docker ps</code> scan</td></tr>
+      <tr><td>Registry misses <code>127.0.0.1</code> bind</td><td>endpoint is <code>None</code></td>
+          <td>Own port parser handles loopback and IPv6 binds</td></tr>
+      <tr><td>Only an app container is running</td><td>chat route returns 404</td>
+          <td>Candidate rejected; no chat routes → no binding</td></tr>
+      <tr><td>No DEH container at all</td><td>all four rungs miss</td>
+          <td><code>available()</code> false → heuristic consolidator runs</td></tr>
+      <tr><td>Server rejects <code>response_format</code></td><td>HTTP 4xx</td>
+          <td>Retry once without it; <code>_extract_json()</code> still strips fences/prose</td></tr>
+      <tr><td>Container up, weights still loading</td><td>timeout / 503</td>
+          <td>Chat raises → dream falls back to heuristic; artifact still written</td></tr>
+      <tr><td>Model id mismatch</td><td>server 400 "unknown model"</td>
+          <td>Client re-reads <code>/v1/models</code> and uses <code>data[0].id</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note ok"><b>Invariant:</b> <code>dream.py dream</code> always writes
+  <code>dream-NNNN.json</code>. Engine availability changes <i>quality</i> of extraction, never
+  the success of the pass — which is exactly why <code>eval</code> can keep measuring
+  retention across the migration boundary.</div>
+</section>
+
+</div>
+
+<footer><div class="wrap">
+  <span>deh_migration.html — Ollama → Dell Enterprise Hub</span>
+  <span>GB10 · dell-pro-max-gb10 · dell-ai 1.1.0 · SGLang · Muse-Glimmer-30B</span>
+</div></footer>
+
+<script>
+  // scroll progress
+  addEventListener('scroll', () => {
+    const h = document.documentElement;
+    document.getElementById('progress').style.width =
+      (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+  });
+
+  // reveal on scroll
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), { threshold: .12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // card cursor glow
+  document.querySelectorAll('.card').forEach(c => {
+    c.addEventListener('mousemove', e => {
+      const r = c.getBoundingClientRect();
+      c.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+      c.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%');
+    });
+  });
+</script>
+</body>
+</html>

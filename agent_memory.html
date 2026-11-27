@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Memory — putting crystallized memory inside OpenCode, Claude Code, Codex &amp; Hermes</title>
+<style>
+  :root{
+    --bg:#070b14; --bg2:#0b1220; --panel:#0f172a; --panel2:#131e33;
+    --line:#1e2b45; --line2:#2a3b5e;
+    --ink:#e6edf7; --ink2:#a5b6d0; --ink3:#7288a8;
+    --blue:#4da3ff; --blue-d:#1b3a63;      /* prompt / response */
+    --purple:#a78bfa; --purple-d:#332a5e;  /* information */
+    --gold:#f5c451; --gold-d:#4a3a12;       /* intelligence */
+    --green:#4ade80; --red:#ff6b6b;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 26px}
+
+  /* ---------- hero ---------- */
+  header{
+    position:relative; overflow:hidden; padding:74px 0 54px;
+    background:radial-gradient(1100px 520px at 12% -12%, #16305a 0%, transparent 62%),
+               radial-gradient(900px 460px at 92% 8%, #2b1f5c 0%, transparent 60%),
+               linear-gradient(180deg,#0a1020 0%, var(--bg) 100%);
+    border-bottom:1px solid var(--line);
+  }
+  header::after{
+    content:""; position:absolute; inset:0;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),
+                     linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:56px 56px; opacity:.20;
+    mask-image:radial-gradient(760px 420px at 50% 30%,#000 0%,transparent 78%);
+    animation:drift 46s linear infinite;
+  }
+  @keyframes drift{to{background-position:56px 56px,56px 56px}}
+  .wrap{position:relative;z-index:1}
+  .kicker{
+    display:inline-flex;align-items:center;gap:9px;font:600 12px/1 var(--mono);
+    letter-spacing:.16em;text-transform:uppercase;color:var(--gold);
+    background:var(--gold-d);border:1px solid #6d5518;padding:8px 14px;border-radius:999px;
+  }
+  h1{font-size:clamp(32px,5vw,54px);line-height:1.08;letter-spacing:-.028em;margin:22px 0 16px}
+  h1 em{font-style:normal;color:var(--purple)}
+  .lede{font-size:19px;color:var(--ink2);max-width:74ch;margin:0}
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:26px}
+  .chip{
+    font:600 12.5px/1 var(--mono);padding:8px 13px;border-radius:8px;
+    border:1px solid var(--line2);background:#0d1626;color:var(--ink2);
+  }
+  .chip b{color:var(--ink)}
+
+  /* ---------- nav ---------- */
+  nav{
+    position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+    background:rgba(7,11,20,.86);border-bottom:1px solid var(--line);
+  }
+  nav .wrap{display:flex;gap:4px;overflow-x:auto;padding:9px 26px}
+  nav a{
+    color:var(--ink3);text-decoration:none;font:600 12.5px/1 var(--mono);
+    padding:9px 13px;border-radius:8px;white-space:nowrap;transition:.18s;
+  }
+  nav a:hover{color:var(--ink);background:var(--panel2)}
+
+  /* ---------- sections ---------- */
+  section{padding:58px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:29px;letter-spacing:-.02em;margin:0 0 8px;display:flex;align-items:center;gap:12px}
+  h2 .n{font:700 13px/1 var(--mono);color:var(--bg);background:var(--ink3);
+        padding:6px 9px;border-radius:7px}
+  h3{font-size:19px;margin:32px 0 10px;letter-spacing:-.01em}
+  p{color:var(--ink2);margin:12px 0}
+  .sub{color:var(--ink3);font-size:15.5px;margin:0 0 22px}
+  strong{color:var(--ink)}
+  code{font-family:var(--mono);font-size:.88em;background:#0c1526;
+       border:1px solid var(--line);padding:2px 6px;border-radius:5px;color:#cfe3ff}
+  a{color:var(--blue)}
+
+  /* ---------- prong diagram ---------- */
+  .prongs{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:26px}
+  @media(max-width:860px){.prongs{grid-template-columns:1fr}}
+  .prong{
+    background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line2);border-radius:16px;padding:24px;position:relative;overflow:hidden;
+  }
+  .prong::before{content:"";position:absolute;inset:0 0 auto;height:3px}
+  .prong.on::before{background:linear-gradient(90deg,var(--blue),transparent)}
+  .prong.off::before{background:linear-gradient(90deg,var(--purple),transparent)}
+  .prong h4{margin:0 0 4px;font-size:18px}
+  .prong .cost{font:700 12px/1 var(--mono);padding:6px 10px;border-radius:6px;display:inline-block;margin-bottom:12px}
+  .cost.z{background:#0e2a1c;color:var(--green);border:1px solid #1d5c3c}
+  .cost.a{background:#241b45;color:var(--purple);border:1px solid #463a7d}
+  .prong ul{margin:12px 0 0;padding-left:19px;color:var(--ink2);font-size:14.6px}
+  .prong li{margin:6px 0}
+
+  /* ---------- flow ---------- */
+  .flow{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:26px;
+    background:var(--panel);border:1px solid var(--line2);border-radius:16px;overflow:hidden;
+  }
+  @media(max-width:900px){.flow{grid-template-columns:1fr 1fr}}
+  .fstep{padding:20px 18px;border-right:1px solid var(--line);position:relative}
+  .fstep:last-child{border-right:0}
+  .fstep .lbl{font:700 11px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--ink3)}
+  .fstep .ttl{font-weight:700;margin:9px 0 6px;font-size:15.5px}
+  .fstep p{font-size:13.6px;margin:0;color:var(--ink3)}
+  .fstep::after{
+    content:"→";position:absolute;right:-11px;top:50%;transform:translateY(-50%);
+    color:var(--blue);font-size:19px;z-index:2;animation:pulse 1.9s ease-in-out infinite;
+  }
+  .fstep:last-child::after{display:none}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+  /* ---------- tables ---------- */
+  table{
+    width:100%;border-collapse:collapse;margin-top:18px;font-size:14.6px;
+    background:var(--panel);border:1px solid var(--line2);border-radius:14px;overflow:hidden;
+  }
+  th{
+    text-align:left;padding:13px 15px;background:var(--panel2);color:var(--ink);
+    font:700 11.5px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;
+    border-bottom:1px solid var(--line2);
+  }
+  td{padding:12px 15px;border-bottom:1px solid var(--line);color:var(--ink2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  tr:hover td{background:#111b30}
+  td code{background:#0a1220}
+  .ok{color:var(--green);font-weight:700}
+  .ro{color:var(--blue);font-weight:700}
+  .rw{color:var(--gold);font-weight:700}
+
+  /* ---------- code ---------- */
+  pre{
+    background:#060a12;border:1px solid var(--line2);border-radius:13px;
+    padding:17px 19px;overflow-x:auto;font-family:var(--mono);
+    font-size:13.3px;line-height:1.62;color:#c6d8f2;margin-top:16px;
+  }
+  pre .c{color:#5b7091} pre .k{color:var(--purple)} pre .s{color:var(--gold)}
+  pre .b{color:var(--blue)} pre .g{color:var(--green)}
+
+  /* ---------- callouts ---------- */
+  .note{
+    border-left:3px solid var(--blue);background:#0b1730;padding:15px 19px;
+    border-radius:0 11px 11px 0;margin-top:20px;font-size:14.8px;color:var(--ink2);
+  }
+  .note.warn{border-color:var(--red);background:#200f14}
+  .note.gold{border-color:var(--gold);background:#1b1508}
+  .note b{color:var(--ink)}
+  .note .t{display:block;font:700 11.5px/1 var(--mono);letter-spacing:.12em;
+           text-transform:uppercase;margin-bottom:7px;color:var(--blue)}
+  .note.warn .t{color:var(--red)} .note.gold .t{color:var(--gold)}
+
+  /* ---------- budget bar ---------- */
+  .bars{margin-top:20px;display:grid;gap:13px}
+  .bar{display:grid;grid-template-columns:190px 1fr 92px;gap:14px;align-items:center;font-size:14px}
+  @media(max-width:700px){.bar{grid-template-columns:1fr;gap:5px}}
+  .bar .nm{color:var(--ink2);font-family:var(--mono);font-size:13px}
+  .track{height:15px;background:#0a1220;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .fill{height:100%;border-radius:7px;transform-origin:left;animation:grow 1.15s cubic-bezier(.22,1,.36,1) both}
+  @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .f-blue{background:linear-gradient(90deg,#2b6fd4,var(--blue))}
+  .f-pur{background:linear-gradient(90deg,#6d54d6,var(--purple))}
+  .f-gold{background:linear-gradient(90deg,#b98d1f,var(--gold))}
+  .bar .vl{text-align:right;font-family:var(--mono);font-size:12.6px;color:var(--ink3)}
+
+  /* ---------- guards ---------- */
+  .guards{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:15px;margin-top:22px}
+  .guard{
+    background:var(--panel);border:1px solid var(--line2);border-radius:13px;padding:17px 18px;
+    transition:.2s;
+  }
+  .guard:hover{border-color:var(--line2);transform:translateY(-3px);box-shadow:0 10px 30px -14px #000}
+  .guard .g-n{font:700 11px/1 var(--mono);color:var(--green);letter-spacing:.1em}
+  .guard h5{margin:9px 0 6px;font-size:15.4px}
+  .guard p{margin:0;font-size:13.7px;color:var(--ink3)}
+
+  /* ---------- incident ---------- */
+  .incident{
+    background:linear-gradient(180deg,#1a0f16,#0f0a10);
+    border:1px solid #4a2230;border-radius:16px;padding:24px;margin-top:22px;
+  }
+  .incident h4{margin:0 0 4px;color:var(--red);font-size:17px}
+  .incident ol{margin:14px 0 0;padding-left:21px;color:var(--ink2);font-size:14.7px}
+  .incident li{margin:8px 0}
+  .incident .fix{border-left:3px solid var(--green);background:#0c1a14;padding:12px 16px;
+                 border-radius:0 9px 9px 0;margin-top:16px;font-size:14.4px;color:var(--ink2)}
+
+  /* ---------- footer ---------- */
+  footer{padding:44px 0 62px;color:var(--ink3);font-size:14px}
+  footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s cubic-bezier(.22,1,.36,1)}
+  .reveal.in{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="kicker">◆ Dream Memory · Agent Integration</span>
+    <h1>Putting crystallized memory<br><em>inside the agent</em></h1>
+    <p class="lede">
+      The dreaming pipeline distils 53 sessions into curated memory. That memory is
+      only useful if the agent actually sees it. This is how it reaches OpenCode,
+      Claude Code, Codex and Hermes — on demand through custom tool calls, and
+      always-on through a bounded digest — with no cloud calls and no idle token cost.
+    </p>
+    <div class="chips">
+      <span class="chip"><b>3</b> MCP tools</span>
+      <span class="chip"><b>4</b> agents wired</span>
+      <span class="chip"><b>~2 KB</b> always-on digest</span>
+      <span class="chip"><b>0</b> tokens when idle</span>
+      <span class="chip"><b>stdlib</b> only</span>
+      <span class="chip"><b>14</b> test groups</span>
+    </div>
+  </div>
+</header>
+
+<nav><div class="wrap">
+  <a href="#problem">Problem</a>
+  <a href="#design">Design</a>
+  <a href="#mcp">MCP server</a>
+  <a href="#digest">Digest</a>
+  <a href="#inbox">Write-back</a>
+  <a href="#agents">Registration</a>
+  <a href="#safety">Safety</a>
+  <a href="#runbook">Runbook</a>
+  <a href="#evidence">Evidence</a>
+</div></nav>
+
+<!-- ============================================================ -->
+<section id="problem">
+  <div class="wrap reveal">
+    <h2><span class="n">01</span> The problem</h2>
+    <p class="sub">Crystallized memory exists on disk. The agent's context window does not.</p>
+
+    <p>
+      A dream pass turns raw transcripts into a compact set of memories — facts,
+      preferences, projects, lessons, tasks. But an agent starting a fresh session
+      has no idea those memories exist. It re-derives the user's preferences from
+      scratch every time, burning tokens and arriving at a less accurate answer
+      than the one already sitting on disk.
+    </p>
+
+    <p>
+      The obvious fix — dump everything into the system prompt — fails on cost.
+      Full crystallized memory is unbounded; it grows with every dream, and the
+      episodic layer beneath it holds <strong>2,391 messages</strong>. Neither belongs
+      in every prompt.
+    </p>
+
+    <div class="note gold">
+      <span class="t">Design tension</span>
+      The facts an agent needs on <b>every</b> turn must already be in context.
+      The facts it needs <b>sometimes</b> must cost nothing until asked for.
+      One mechanism cannot do both — so there are two.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="design">
+  <div class="wrap reveal">
+    <h2><span class="n">02</span> Two prongs</h2>
+    <p class="sub">Complementary by design: depth on demand, breadth always on.</p>
+
+    <div class="prongs">
+      <div class="prong on">
+        <h4>A · MCP tool calls</h4>
+        <span class="cost z">0 tokens when idle</span>
+        <p style="margin:0;font-size:14.6px">
+          A stdlib MCP server exposing three tools over stdio. The model decides
+          when to search, so deep recall costs only what it returns.
+        </p>
+        <ul>
+          <li><b>dream_recall</b> — crystallized search, optionally with episodic evidence</li>
+          <li><b>dream_status</b> — what is in memory right now</li>
+          <li><b>dream_remember</b> — write a durable memory back</li>
+          <li>Reaches the episodic layer, which the digest never does</li>
+        </ul>
+      </div>
+      <div class="prong off">
+        <h4>B · Always-on digest</h4>
+        <span class="cost a">~2 KB, every session</span>
+        <p style="margin:0;font-size:14.6px">
+          A bounded, generated summary written into the memory file each agent
+          already loads into its system prompt. No tool call required.
+        </p>
+        <ul>
+          <li>Hermes <code>MEMORY.md</code> + <code>USER.md</code></li>
+          <li>Claude Code <code>CLAUDE.md</code> · Codex <code>AGENTS.md</code></li>
+          <li>Managed block — regeneration never touches your own notes</li>
+          <li>Category split: preferences go to the profile, rest to notes</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>How a memory travels</h3>
+    <div class="flow">
+      <div class="fstep">
+        <span class="lbl">Layer 1</span>
+        <div class="ttl">Episodic transcripts</div>
+        <p>Append-only sessions from all four tools. Never modified.</p>
+      </div>
+      <div class="fstep">
+        <span class="lbl">Consolidation</span>
+        <div class="ttl">Dream pass</div>
+        <p>LLM via DEH, heuristic fallback. New immutable artifact.</p>
+      </div>
+      <div class="fstep">
+        <span class="lbl">Layer 2</span>
+        <div class="ttl">Crystallized memory</div>
+        <p>Curated entries with importance, confidence, provenance.</p>
+      </div>
+      <div class="fstep">
+        <span class="lbl">Delivery</span>
+        <div class="ttl">MCP tools + digest</div>
+        <p>On-demand search, and a bounded block in every agent's prompt.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="mcp">
+  <div class="wrap reveal">
+    <h2><span class="n">03</span> The MCP server</h2>
+    <p class="sub"><code>dream_memory/mcp_server.py</code> — newline-delimited JSON-RPC 2.0 over stdio.</p>
+
+    <p>
+      Written against the protocol directly, in the Python standard library —
+      no <code>mcp</code> SDK, no install step, no dependency for any of the four
+      hosts. The registered command is always
+      <code>python3 &lt;abs&gt;/dream.py mcp</code>, so the server runs on exactly
+      the same code as the rest of the pipeline.
+    </p>
+
+    <div class="note warn">
+      <span class="t">Transport contract</span>
+      <b>stdout is the protocol channel.</b> Every log line goes to stderr, or the
+      client sees a malformed frame and drops the connection. The test suite
+      asserts stdout contains nothing but JSON lines.
+    </div>
+
+    <h3>Tools</h3>
+    <table>
+      <thead><tr><th>Tool</th><th>Access</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>dream_recall(query, limit, include_episodic)</code></td>
+          <td class="ro">read</td>
+          <td>Crystallized first (score = overlap + 0.3 × importance), episodic
+              beneath as evidence when requested, pending write-backs surfaced
+              explicitly.</td>
+        </tr>
+        <tr>
+          <td><code>dream_status()</code></td>
+          <td class="ro">read</td>
+          <td>Session/message counts by tool, latest dream, category breakdown,
+              pending inbox, digest path.</td>
+        </tr>
+        <tr>
+          <td><code>dream_remember(content, category, importance, confidence, agent)</code></td>
+          <td class="rw">write</td>
+          <td>Appends to the inbox and regenerates digests immediately — the
+              memory is live before any dream runs.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Protocol</h3>
+    <pre><span class="c"># client → server</span>
+<span class="b">{"jsonrpc":"2.0","id":1,"method":"initialize","params":{</span>
+  <span class="b">"protocolVersion":"2025-06-18","capabilities":{},</span>
+  <span class="b">"clientInfo":{"name":"opencode","version":"2.4.1"}}}</span>
+
+<span class="c"># server → client  (instructions are injected into OpenCode's system prompt)</span>
+<span class="k">{"jsonrpc":"2.0","id":1,"result":{</span>
+  <span class="k">"protocolVersion":"2025-06-18",</span>
+  <span class="k">"capabilities":{"tools":{"listChanged":false}},</span>
+  <span class="k">"serverInfo":{"name":"dream-memory","version":"1.0.0"},</span>
+  <span class="k">"instructions":"Crystallized memory ... call dream_recall before</span>
+<span class="k">                 re-deriving user preferences ..."}}</span></pre>
+
+    <p>
+      Speaks <code>2024-11-05</code> through <code>2025-11-25</code>, echoing the
+      client's proposal. Tool failures return <code>isError: true</code> results —
+      the model sees the message instead of the session tearing down — while an
+      unknown tool name returns JSON-RPC <code>-32602</code>, which is what the
+      spec requires.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="digest">
+  <div class="wrap reveal">
+    <h2><span class="n">04</span> The always-on digest</h2>
+    <p class="sub"><code>dream_memory/context.py</code> — bounded, generated, managed.</p>
+
+    <p>
+      Waiting for the model to decide to call a tool means paying the
+      re-derivation cost instead. Preferences and project shape belong in the
+      prompt from turn one. The digest writes exactly those, within a hard budget.
+    </p>
+
+    <h3>Targets and budgets</h3>
+    <div class="bars">
+      <div class="bar"><span class="nm">Hermes MEMORY.md</span>
+        <span class="track"><span class="fill f-pur" style="width:70%"></span></span>
+        <span class="vl">1400 ch</span></div>
+      <div class="bar"><span class="nm">Hermes USER.md</span>
+        <span class="track"><span class="fill f-gold" style="width:45%"></span></span>
+        <span class="vl">900 ch</span></div>
+      <div class="bar"><span class="nm">Claude CLAUDE.md</span>
+        <span class="track"><span class="fill f-blue" style="width:100%"></span></span>
+        <span class="vl">2000 ch</span></div>
+      <div class="bar"><span class="nm">Codex AGENTS.md</span>
+        <span class="track"><span class="fill f-blue" style="width:100%"></span></span>
+        <span class="vl">2000 ch</span></div>
+    </div>
+
+    <p style="margin-top:22px">
+      Entries are sorted by importance then confidence, deduplicated, and packed
+      until the budget is hit. Hermes keeps two files with genuinely different
+      jobs — <strong>preferences → <code>USER.md</code></strong> (who the user is),
+      everything else → <code>MEMORY.md</code> (agent notes). Single-file targets
+      receive the combined digest under one header.
+    </p>
+
+    <h3>Managed blocks</h3>
+    <pre><span class="c"># markdown targets — CLAUDE.md, AGENTS.md</span>
+<span class="k">&lt;!-- BEGIN dream-memory:managed --&gt;</span>
+Auto-generated by <span class="s">`dream.py context`</span> from crystallized memory.
+Do not edit -- it is rewritten on every regeneration.
+- <span class="b">(preference, imp=0.7)</span> User prefers an open-source stack ...
+<span class="k">&lt;!-- END dream-memory:managed --&gt;</span>
+
+<span class="c"># Hermes targets — written as exactly ONE real entry</span>
+<span class="g">[dream-memory:managed]</span>
+...
+<span class="g">[/dream-memory:managed]</span>
+<span class="c"># separated from other entries by the literal "\n§\n"</span></pre>
+
+    <div class="note">
+      <span class="t">Why the § delimiter matters</span>
+      Hermes parses <code>MEMORY.md</code> and <code>USER.md</code> by splitting on
+      the literal <code>"\n§\n"</code> and re-joins with the same delimiter every time
+      its own <code>memory</code> tool writes. A plain newline would let Hermes merge
+      our block into one of its entries <b>permanently</b>. So the block is written as a
+      real entry, and never contains the delimiter itself.
+    </div>
+
+    <h3>Regeneration triggers</h3>
+    <table>
+      <thead><tr><th>Trigger</th><th>Command</th></tr></thead>
+      <tbody>
+        <tr><td>Explicitly, on demand</td><td><code>python3 dream.py context</code></td></tr>
+        <tr><td>Automatically after every dream</td><td><code>dream.py dream</code> (failure never fails the dream)</td></tr>
+        <tr><td>On every <code>dream_remember</code></td><td>so write-back is visible immediately</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="inbox">
+  <div class="wrap reveal">
+    <h2><span class="n">05</span> Write-back loop</h2>
+    <p class="sub"><code>dream_memory/inbox.py</code> — agents contribute, the dreamer decides.</p>
+
+    <div class="flow">
+      <div class="fstep">
+        <span class="lbl">Agent</span>
+        <div class="ttl">dream_remember(…)</div>
+        <p>An agent notices a durable fact, preference or lesson.</p>
+      </div>
+      <div class="fstep">
+        <span class="lbl">Append</span>
+        <div class="ttl">inbox.jsonl</div>
+        <p>Write-once JSONL. Never rewritten, never deleted.</p>
+      </div>
+      <div class="fstep">
+        <span class="lbl">Next dream</span>
+        <div class="ttl">joins prior entries</div>
+        <p>Normal keep / revise / drop rule applies, with provenance.</p>
+      </div>
+      <div class="fstep">
+        <span class="lbl">Result</span>
+        <div class="ttl">ordinary crystallized entry</div>
+        <p><code>sources=[rem-…]</code> records that an agent, not a transcript, said it.</p>
+      </div>
+    </div>
+
+    <p style="margin-top:22px">
+      Consumption is tracked by unioning <code>inbox_ids</code> across
+      <strong>all</strong> dreams — the same pattern as <code>processed_hashes</code>.
+      A consumed record is <em>marked</em>, never deleted, so the append-only
+      invariant holds for the inbox too. Pending records are visible to recall
+      and in the digest before any dream runs.
+    </p>
+
+    <pre><span class="c">$ python3 dream.py inbox</span>
+MEMORY INBOX  (dream_remember write-back)
+  pending: 2   already dreamed: 5
+
+  [rem-1795…] (preference, imp=0.9, via opencode)
+        User prefers pytest over unittest for Python tests.</pre>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="agents">
+  <div class="wrap reveal">
+    <h2><span class="n">06</span> Registration</h2>
+    <p class="sub">Each host is wired with its own official CLI — the vendor's supported path.</p>
+
+    <table>
+      <thead><tr><th>Agent</th><th>Command</th><th>Config target</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>OpenCode <span style="color:var(--ink3)">v2.4.1</span></td>
+          <td><code>opencode mcp add dream --global -- …</code></td>
+          <td><code>mcp.servers.dream</code></td><td class="ok">✓ verified live</td>
+        </tr>
+        <tr>
+          <td>Claude Code <span style="color:var(--ink3)">2.1.214</span></td>
+          <td><code>claude mcp add --scope user dream -- …</code></td>
+          <td><code>mcpServers.dream</code></td><td class="ok">✓ config valid</td>
+        </tr>
+        <tr>
+          <td>Codex <span style="color:var(--ink3)">0.157.1</span></td>
+          <td><code>codex mcp add dream -- …</code></td>
+          <td><code>[mcp_servers.dream]</code></td>
+          <td><span style="color:var(--gold)">⚠ config written</span></td>
+        </tr>
+        <tr>
+          <td>Hermes</td>
+          <td>direct YAML insert (timestamped backup first)</td>
+          <td><code>mcp_servers.dream</code></td><td class="ok">✓ argv simulated</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note warn">
+      <span class="t">Codex caveat</span>
+      <code>codex mcp add</code> works and writes the config, but
+      <code>codex mcp list</code> fails with <i>"your refresh token was revoked"</i>.
+      Codex needs <code>codex logout &amp;&amp; codex login</code> before it can
+      actually connect. The registration itself is correct.
+    </div>
+
+    <h3>Hermes also gets the digest</h3>
+    <p>
+      Hermes injects <code>MEMORY.md</code> and <code>USER.md</code> into its system
+      prompt as a frozen snapshot with a hard <strong>2,200</strong> and
+      <strong>1,375</strong> character cap. The digests are budgeted beneath those
+      limits (1400 / 900), and Hermes threat-scans entries at snapshot time — the
+      digest is plain prose, so it passes.
+    </p>
+
+    <pre><span class="c">$ python3 dream.py connect</span>
+  server command: /usr/bin/python3 …/dream.py mcp
+
+  <span class="g">[OK  ]</span> opencode  MCP server "dream" added to opencode.json
+  <span class="g">[OK  ]</span> claude    Added stdio MCP server dream … to user config
+  <span class="g">[OK  ]</span> codex     Added global MCP server 'dream'.
+  <span class="g">[OK  ]</span> hermes    registered in config.yaml (backup: config.yaml.bak.dream_…)</pre>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="safety">
+  <div class="wrap reveal">
+    <h2><span class="n">07</span> Safety</h2>
+    <p class="sub">Writing into files the user already owns demands more care than writing our own.</p>
+
+    <div class="guards">
+      <div class="guard">
+        <span class="g-n">GUARD 01</span>
+        <h5>Root isolation</h5>
+        <p>A non-default memory root writes <b>only</b> the canonical digest.
+           Agent files are untouched unless <code>DREAM_DIGEST_FORCE=1</code>
+           or <code>DREAM_DIGEST_HOME</code> relocates them.</p>
+      </div>
+      <div class="guard">
+        <span class="g-n">GUARD 02</span>
+        <h5>Never truncate</h5>
+        <p>If a computed result would empty a file that had content, the write
+           is skipped entirely (<code>skipped_empty</code>).</p>
+      </div>
+      <div class="guard">
+        <span class="g-n">GUARD 03</span>
+        <h5>Rolling backup</h5>
+        <p>Every digest write first saves the previous content to
+           <code>&lt;file&gt;.dream-bak</code> — one generation of recovery,
+           never a pile of files.</p>
+      </div>
+      <div class="guard">
+        <span class="g-n">GUARD 04</span>
+        <h5>Marker-bounded edits</h5>
+        <p>Only text between <b>our</b> markers is replaced. Foreign text in the
+           same entry is preserved; an empty result falls back to the original.</p>
+      </div>
+      <div class="guard">
+        <span class="g-n">GUARD 05</span>
+        <h5>Degenerate output rejected</h5>
+        <p>Placeholder replies (<code>"content": "…"</code>) are filtered before
+           they can reach crystallized memory or a digest.</p>
+      </div>
+      <div class="guard">
+        <span class="g-n">GUARD 06</span>
+        <h5>Episodic stays read-only</h5>
+        <p>The MCP server exposes no write path to Layer 1. Write-back goes to
+           the separate append-only inbox.</p>
+      </div>
+    </div>
+
+    <div class="incident">
+      <h4>⚠ Incident: two data-loss bugs found during implementation</h4>
+      <p style="color:var(--ink2);font-size:14.7px;margin:6px 0 0">
+        Both were caught before commit, both changed the design, both now have
+        regression tests.
+      </p>
+      <ol>
+        <li>
+          <b>Hermes profile wiped.</b> An earlier upsert dropped any entry containing
+          our markers wholesale. Because a previous generation had merged the user's
+          own 717-byte profile into the same entry, the filter deleted it too.
+          <b>Recovered byte-exact</b> from a transcript copy, then the parser was
+          changed to strip only marker-bounded text.
+        </li>
+        <li>
+          <b>Scratch root overwrote live agent files.</b> The isolation guard checked
+          only the <code>DREAM_ROOT</code> environment variable, so
+          <code>dream.py --root /tmp/…</code> bypassed it and wrote a test digest
+          into the real <code>CLAUDE.md</code>, <code>AGENTS.md</code> and
+          <code>MEMORY.md</code>. <b>All restored from <code>.dream-bak</code></b>.
+        </li>
+      </ol>
+      <div class="fix">
+        <b>Fix:</b> the guard now evaluates the actual <code>root</code> argument,
+        not an environment variable; a non-default root can never reach agent files
+        without an explicit opt-in. Both bugs are pinned by tests 10 and 11 in
+        <code>test_memory_context.py</code>.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="runbook">
+  <div class="wrap reveal">
+    <h2><span class="n">08</span> Runbook</h2>
+    <p class="sub">Everything is local. Nothing here calls a cloud service.</p>
+
+    <pre><span class="c"># one-time: register with all four agents (Hermes YAML backed up first)</span>
+python3 dream.py connect
+
+<span class="c"># regenerate the always-on digest by hand</span>
+python3 dream.py context
+
+<span class="c"># see what agents have written back</span>
+python3 dream.py inbox
+
+<span class="c"># run the server manually (what the agents spawn)</span>
+python3 dream.py mcp
+
+<span class="c"># full cycle: ingest → dream → refresh digests → eval</span>
+./run_dream.sh
+
+<span class="c"># tests</span>
+python3 test_memory_context.py     <span class="c"># 14 groups: digest, inbox, guards</span>
+
+<span class="c"># budget overrides</span>
+DREAM_DIGEST_MEMORY_CHARS=1400 DREAM_DIGEST_USER_CHARS=900 \
+DREAM_DIGEST_CHARS=2000 python3 dream.py context</pre>
+
+    <h3>Environment variables</h3>
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>DREAM_DIGEST_HOME</code></td><td>unset → <code>~</code></td><td>Relocate every agent file (tests use this)</td></tr>
+        <tr><td><code>DREAM_DIGEST_FORCE</code></td><td>unset</td><td>Allow agent writes from a non-default root</td></tr>
+        <tr><td><code>DREAM_DIGEST_MEMORY_CHARS</code></td><td>1400</td><td>Hermes <code>MEMORY.md</code> budget</td></tr>
+        <tr><td><code>DREAM_DIGEST_USER_CHARS</code></td><td>900</td><td>Hermes <code>USER.md</code> budget</td></tr>
+        <tr><td><code>DREAM_DIGEST_CHARS</code></td><td>2000</td><td>Single-file target budget</td></tr>
+        <tr><td><code>DREAM_ROOT</code></td><td><code>~/.dream-memory</code></td><td>Storage root — non-default ⇒ no agent writes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="evidence">
+  <div class="wrap reveal">
+    <h2><span class="n">09</span> Evidence</h2>
+    <p class="sub">What was actually observed, not what was intended.</p>
+
+    <h3>Live MCP call through OpenCode's real connection</h3>
+    <pre><span class="c">tools.dream.dream_status()</span>
+DREAM MEMORY STATUS
+  root:          /home/bala/.dream-memory
+  episodic:      53 sessions, 2391 messages
+  by tool:       {'claude-code': 5, 'opencode': 46, 'hermes': 1, 'codex': 1}
+  latest dream:  dream-0002 (19 entries)
+  dreams:        dream-0001, dream-0002
+  categories:    {'fact': 5, 'task': 2, 'project': 4, 'lesson': 7, 'preference': 1}
+  pending inbox: 0
+  digest:        /home/bala/.dream-memory/context/digest.md
+
+<span class="c">tools.dream.dream_recall({query: "open-source stack preferences"})</span>
+CRYSTALLIZED MEMORY (curated, 5):
+  <span class="b">[0.96]</span> (preference, imp=0.7) User prefers an open-source stack for
+              building enterprise agents, using tools such as vLLM, OPA,
+              Keycloak, Vault, and OpenShell …
+  <span class="b">[0.77]</span> (fact, imp=0.9) Project /home/bala/hermes/agent-platform is a
+              scaffold for an enterprise agent platform …</pre>
+
+    <h3>Hermes file parse after regeneration</h3>
+    <pre><span class="c"># splitting USER.md exactly the way Hermes does</span>
+USER.md: 2 entries, 1120 bytes
+   <span class="g">[0] HERMES-OWN  717 chars</span>   <span class="c">← the user's original profile, intact</span>
+   <span class="k">[1] MANAGED     396 chars</span>   <span class="c">← our digest, one real § entry</span>
+   original profile preserved as separate entry: <span class="g">True</span>
+
+MEMORY.md: 1 entries, 1571 bytes
+   <span class="k">[0] MANAGED    1562 chars</span></pre>
+
+    <h3>Test suites</h3>
+    <table>
+      <thead><tr><th>Suite</th><th>Covers</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>test_memory_context.py</code></td>
+          <td>§-entry handling, marker replacement, idempotency, category split,
+              budgets, dedup, inbox cycle, root guard, degenerate rejection,
+              <code>_parse_entries</code></td>
+          <td class="ok">14 groups · all pass</td>
+        </tr>
+        <tr>
+          <td>MCP protocol test</td>
+          <td>initialize (version + instructions), ping, <code>tools/list</code>,
+              all three tools, pending visibility, <code>-32602</code>,
+              notification silence, pure-JSON stdout</td>
+          <td class="ok">8 frames · all pass</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note gold">
+      <span class="t">Quality finding</span>
+      Muse-Glimmer-30B <b>stochastically</b> answers with a placeholder template
+      (<code>{"content": "..."}</code>) instead of real memories — the identical
+      prompt returned 10/10 usable entries on a retry. The dream loop therefore
+      retries up to 3 times with a corrective nudge and a temperature bump before
+      falling back to the heuristic consolidator, and <code>stats.llm_attempts</code>
+      records how many it took.
+    </div>
+  </div>
+</section>
+
+<footer><div class="wrap">
+  <span>Dream Memory · agent integration reference</span>
+  <span>Self-contained — no external assets · offline <code>file://</code> safe</span>
+</div></footer>
+
+<script>
+  const io = new IntersectionObserver(es => {
+    es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: .08 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>

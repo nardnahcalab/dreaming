@@ -4,7 +4,7 @@ dream.py - Local AI memory with dreaming (memory consolidation).
 
 Collects episodic memory from OpenCode, Claude Code, Codex and Hermes,
 preserves it append-only, and consolidates it into abstract memory by
-running "dreams" with a local Ollama model.
+running "dreams" against a Dell Enterprise Hub (DEH) endpoint.
 
 Usage:
   python3 dream.py sync              # ingest new sessions from all tools
@@ -14,12 +14,14 @@ Usage:
   python3 dream.py recall "query"    # search crystallized + episodic memory
   python3 dream.py eval              # compare last two dreams (health check)
   python3 dream.py rollback dream-0002   # repoint latest to older dream
-  python3 dream.py models            # list local Ollama models
+  python3 dream.py models            # show DEH endpoint + served models
   python3 dream.py history           # show dreaming instrumentation log
 
 Environment:
-  DREAM_ROOT   storage location (default: ~/.dream-memory)
-  DREAM_MODEL  Ollama model for dreaming (default: gpt-oss:20b)
+  DREAM_ROOT           storage location (default: ~/.dream-memory)
+  DREAM_MODEL          model id (default: meta-models/Muse-Glimmer-30B)
+  DREAM_DEH_ENDPOINT   explicit endpoint override (skips discovery)
+  DREAM_DEH_SLUG       image-slug filter for endpoint discovery
 """
 
 import argparse
@@ -32,7 +34,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dream_memory.episodic import EpisodicStore
 from dream_memory.dreaming import Dreamer, DreamStore, LocalLLM
-from dream_memory import evaluator, recall
+from dream_memory.deh import DEHLLM
+from dream_memory import evaluator, recall, context, inbox, connect
 from dream_memory.collectors import all_collectors
 
 
@@ -110,11 +113,14 @@ def cmd_status(args):
     else:
         print("  (no dreams yet - run `python3 dream.py dream`)")
 
-    llm = LocalLLM()
-    print(f"\nDREAM ENGINE (local Ollama)")
+    llm = DEHLLM()
+    info = llm.endpoint_info()
+    print(f"\nDREAM ENGINE (Dell Enterprise Hub)")
     print(f"  Available: {'yes' if llm.available() else 'NO'}")
-    if llm.available():
-        print(f"  Model:     {llm.model}")
+    print(f"  Endpoint:  {info.get('endpoint') or '(none discovered)'}"
+          f"  [{info.get('source')}]")
+    print(f"  SDK:       {'dell-ai installed' if info.get('sdk_installed') else 'not installed (docker scan fallback)'}")
+    print(f"  Model:     {info.get('served_model') or info.get('configured_model')}")
     print()
     return 0
 
@@ -129,12 +135,16 @@ def cmd_dream(args):
         print("No episodic memory yet. Run `python3 dream.py sync` first.")
         return 1
 
-    llm = LocalLLM(model=args.model)
+    llm = DEHLLM(model=args.model)
     if not args.no_llm and not llm.available():
-        print("Ollama not reachable - falling back to heuristic consolidator.")
-        print("(start ollama for higher quality dreams)\n")
+        print("No DEH endpoint reachable - falling back to heuristic consolidator.")
+        print("Deploy first: dell-ai models deploy --model-id "
+              "meta-models/Muse-Glimmer-30B \\")
+        print("  --platform-id dell-pro-max-gb10 --engine docker --gpus 1\n")
     elif not args.no_llm:
-        print(f"Dreaming with local model: {llm.model}\n")
+        _info = llm.endpoint_info()
+        print(f"Dreaming via DEH: {_info.get('served_model') or llm.model}")
+        print(f"  endpoint {_info.get('endpoint')} [{_info.get('source')}]\n")
 
     print(f"Episodic memory: {stats['sessions']} sessions "
           f"({stats['messages']} messages)")
@@ -148,12 +158,16 @@ def cmd_dream(args):
     if report.get("skipped"):
         print("Nothing new since last dream - no artifact written.")
         print(f"Latest dream remains: {report['dream_id'] or '(none)'}")
+        _refresh_digests(root)
         return 0
 
     print("=" * 60)
     print(f"  DREAM COMPLETE: {report['dream_id']}")
     print("=" * 60)
     print(f"  Engine:        {'LLM (' + str(report['model']) + ')' if report['used_llm'] else 'heuristic'}")
+    if report.get("llm_attempts", 1) > 1:
+        print(f"  LLM attempts:  {report['llm_attempts']}"
+              + ("" if report["used_llm"] else " (all degenerate)"))
     if report["llm_error"]:
         print(f"  LLM error:     {report['llm_error']} (fell back)")
     print(f"  New sessions:  {report['new_sessions']}")
@@ -168,7 +182,31 @@ def cmd_dream(args):
         print("  Top memories:")
         for e in sorted(artifact.entries, key=lambda x: -x.importance)[:8]:
             print(f"    [{e.importance:.1f}] ({e.category}) {e.content[:90]}")
+
+    _refresh_digests(root)
     return 0
+
+
+def _refresh_digests(root):
+    """Keep the always-on agent digests in step with the latest dream.
+
+    Failure here must never fail a dream: the artifact is already written and
+    is the source of truth. `dream.py context` can always regenerate later.
+    """
+    try:
+        ds = DreamStore(root)
+        last_id = ds.latest_id()
+        art = ds.load(last_id) if last_id else None
+        extra = inbox.pending_entries(root, ds)
+        changed = [r for r in context.write_digests(root, art, extra=extra)
+                   if r["changed"]]
+        if changed:
+            print(f"\n  Context digest refreshed ({len(changed)} file(s)):")
+            for r in changed:
+                print(f"    {r['path']}")
+    except Exception as ex:
+        print(f"\n  WARN: digest refresh failed ({ex}); "
+              f"run `python3 dream.py context` to retry")
 
 
 def cmd_show(args):
@@ -289,18 +327,120 @@ def cmd_rollback(args):
 
 
 def cmd_models(args):
-    llm = LocalLLM()
-    if not llm.available():
-        print("Ollama not reachable at http://localhost:11434")
-        print("Install/start ollama to enable LLM-powered dreaming.")
-        return 1
+    llm = DEHLLM()
+    info = llm.endpoint_info()
+    print("DEH endpoint:")
+    print(f"  url:    {info.get('endpoint') or '(none discovered)'}")
+    print(f"  source: {info.get('source')}")
+    print(f"  sdk:    {'dell-ai installed' if info.get('sdk_installed') else 'not installed'}")
+    print(f"  model:  {info.get('served_model') or info.get('configured_model')}")
+
     models = llm.list_models()
-    print(f"Available models (current: {llm.model}):")
+    if not models:
+        print("\nNo models served (endpoint down or no container running).")
+        print("Start one with: dell-ai models deploy --model-id "
+              "meta-models/Muse-Glimmer-30B \\")
+        print("  --platform-id dell-pro-max-gb10 --engine docker --gpus 1")
+        return 1
+    print(f"\nModels served by this endpoint ({len(models)}):")
     for m in models:
-        marker = "  <-- current" if m == llm.model else ""
+        marker = "  <-- current" if m == (info.get('served_model') or info.get('configured_model')) else ""
         print(f"  - {m}{marker}")
-    print("\nSet with: DREAM_MODEL=<name> python3 dream.py dream")
+    print("\nSet with: DREAM_MODEL=<id> python3 dream.py dream")
     return 0
+
+
+def cmd_context(args):
+    """Regenerate the always-on digest in every agent's memory file."""
+    root = args.root
+    ds = DreamStore(root)
+    last_id = ds.latest_id()
+    art = ds.load(last_id) if last_id else None
+    extra = inbox.pending_entries(root, ds)
+
+    report = context.write_digests(root, art, extra=extra)
+
+    src = "%s (%d entries)" % (last_id or "no dream yet",
+                               len(art.entries) if art else 0)
+    if extra:
+        src += " + %d pending inbox" % len(extra)
+    print("\nCONTEXT DIGEST  <-  crystallized memory")
+    print("  source:  %s" % src)
+    print("  budget:  memory %s / user %s / single %s chars" % (
+        os.environ.get("DREAM_DIGEST_MEMORY_CHARS",
+                       context.DEFAULT_MEMORY_CHARS),
+        os.environ.get("DREAM_DIGEST_USER_CHARS",
+                       context.DEFAULT_USER_CHARS),
+        os.environ.get("DREAM_DIGEST_CHARS",
+                       context.DEFAULT_SINGLE_CHARS)))
+    print()
+    for r in report:
+        mark = "updated" if r["changed"] else "current"
+        print("  [%-8s] %5d chars  %s" % (mark, r["chars"], r["path"]))
+    print()
+    return 0
+
+
+def cmd_connect(args):
+    """Register the dream-memory MCP server with one or all agents."""
+    agents = None if args.agent == "all" else [args.agent]
+    results = connect.connect(agents)
+    cmd = " ".join(connect.server_command())
+
+    print("\nMCP REGISTRATION")
+    print("  server command: %s\n" % cmd)
+    for r in results:
+        mark = "OK  " if r["ok"] else "FAIL"
+        print("  [%s] %-9s %s" % (mark, r["agent"],
+                                  r["detail"].splitlines()[0]
+                                  if r["detail"] else ""))
+        if not r["ok"]:
+            for ln in r["detail"].splitlines()[1:]:
+                print("              %s" % ln)
+    print()
+    if all(r["ok"] for r in results):
+        print("  Next: restart each agent, then ask it to call")
+        print("        dream_recall / dream_status / dream_remember.\n")
+        return 0
+    print("  One or more agents failed -- see above.\n")
+    return 1
+
+
+def cmd_inbox(args):
+    """Show memories agents have contributed but not yet dreamed."""
+    root = args.root
+    ds = DreamStore(root)
+    pend = inbox.pending(root, ds)
+    done = len(inbox.load_inbox(root)) - len(pend)
+
+    if not inbox_mod_exists(root):
+        print("Inbox is empty -- nothing remembered yet.")
+        return 0
+
+    print("\nMEMORY INBOX  (dream_remember write-back)")
+    print("  pending: %d   already dreamed: %d\n" % (len(pend), done))
+    for r in pend:
+        print("  [%s] (%s, imp=%.1f, via %s)" % (
+            r.get("id"), r.get("category", "fact"),
+            float(r.get("importance", 0)), r.get("agent") or "?"))
+        print("        %s" % r.get("content", ""))
+    if not pend:
+        print("  (none pending)")
+    print()
+    return 0
+
+
+def inbox_mod_exists(root):
+    return os.path.exists(inbox.inbox_path(root))
+
+
+def cmd_mcp(args):
+    """Run the MCP stdio server (registered with agents by `connect`).
+
+    Writes ONLY JSON-RPC frames to stdout; all logging goes to stderr.
+    """
+    from dream_memory.mcp_server import main as mcp_main
+    return mcp_main()
 
 
 def cmd_history(args):
@@ -318,9 +458,11 @@ def cmd_history(args):
             ts = r.get("ts", "")[:19]
             ev = r.get("event")
             if ev == "dream":
+                att = r.get("llm_attempts") or 1
+                att_s = f" attempts={att}" if att > 1 else ""
                 print(f"{ts}  {r.get('dream_id')}  sessions={r.get('sessions_processed')} "
                       f"entries={r.get('entries')} "
-                      f"engine={'llm:'+str(r.get('model')) if r.get('used_llm') else 'heuristic'}")
+                      f"engine={'llm:'+str(r.get('model'))+att_s if r.get('used_llm') else 'heuristic'}")
             else:
                 print(f"{ts}  {ev} {r.get('tool','')} {r.get('session','')}")
     return 0
@@ -343,7 +485,7 @@ def main():
     d.add_argument("--no-llm", action="store_true",
                    help="force heuristic consolidator (no model)")
     d.add_argument("--max-sessions", type=int, default=40)
-    d.add_argument("--model", default=None, help="Ollama model name")
+    d.add_argument("--model", default=None, help="DEH model id")
 
     s = sub.add_parser("show", help="print crystallized memory")
     s.add_argument("--dream", default=None, help="specific dream id")
@@ -357,14 +499,26 @@ def main():
     rb = sub.add_parser("rollback", help="repoint latest to older dream")
     rb.add_argument("dream_id")
 
-    sub.add_parser("models", help="list local Ollama models")
+    sub.add_parser("models", help="show DEH endpoint and served models")
     sub.add_parser("history", help="show dreaming log")
+
+    sub.add_parser("context", help="regenerate always-on digest in agent memory files")
+
+    c = sub.add_parser("connect", help="register MCP server with agents")
+    c.add_argument("--agent", default="all",
+                   choices=["all", "opencode", "claude", "codex", "hermes"],
+                   help="which agent to register with (default: all)")
+
+    sub.add_parser("inbox", help="show remembered-but-not-yet-dreamed entries")
+    sub.add_parser("mcp", help="run the MCP stdio server (used by agents)")
 
     args = p.parse_args()
     handlers = {
         "sync": cmd_sync, "status": cmd_status, "dream": cmd_dream,
         "show": cmd_show, "recall": cmd_recall, "eval": cmd_eval,
         "rollback": cmd_rollback, "models": cmd_models, "history": cmd_history,
+        "context": cmd_context, "connect": cmd_connect, "inbox": cmd_inbox,
+        "mcp": cmd_mcp,
     }
     sys.exit(handlers[args.cmd](args))
 
